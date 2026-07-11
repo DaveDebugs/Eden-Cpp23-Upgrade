@@ -144,7 +144,7 @@ struct Memory::Impl {
         if ((addr & 1) == 0) {
             return Read<u16_le>(addr);
         } else {
-            return std::byteswap(Read<u16_be>(addr));
+            return std::byteswap(static_cast<u16>(Read<u16_be>(addr)));
         }
     }
 
@@ -152,7 +152,7 @@ struct Memory::Impl {
         if ((addr & 3) == 0) {
             return Read<u32_le>(addr);
         } else {
-            return std::byteswap(Read<u32_be>(addr));
+            return std::byteswap(static_cast<u32>(Read<u32_be>(addr)));
         }
     }
 
@@ -160,7 +160,7 @@ struct Memory::Impl {
         if ((addr & 7) == 0) {
             return Read<u64_le>(addr);
         } else {
-            return std::byteswap(Read<u64_be>(addr));
+            return std::byteswap(static_cast<u64>(Read<u64_be>(addr)));
         }
     }
 
