@@ -256,12 +256,12 @@ void RasterizerVulkan::PrepareDraw(bool is_indexed, Func&& draw_func) {
 }
 
 void RasterizerVulkan::Draw(bool is_indexed, u32 instance_count) {
-    PrepareDraw(is_indexed, [is_indexed, instance_count](this auto& self) {
-        const auto& draw_state = self.maxwell3d->draw_manager.draw_state;
+    PrepareDraw(is_indexed, [this, is_indexed, instance_count]() {
+        const auto& draw_state = maxwell3d->draw_manager.draw_state;
         const u32 num_instances{instance_count};
         const DrawParams draw_params{MakeDrawParams(draw_state, num_instances, is_indexed)};
 
-        self.scheduler.Record([draw_params](vk::CommandBuffer cmdbuf) {
+        scheduler.Record([draw_params](vk::CommandBuffer cmdbuf) {
             if (draw_params.is_indexed) {
                 cmdbuf.DrawIndexed(draw_params.num_vertices, draw_params.num_instances,
                                    draw_params.first_index, draw_params.base_vertex,
@@ -291,23 +291,23 @@ void RasterizerVulkan::Draw(bool is_indexed, u32 instance_count) {
 void RasterizerVulkan::DrawIndirect() {
     const auto& params = maxwell3d->draw_manager.indirect_state;
     buffer_cache.SetDrawIndirect(&params);
-    PrepareDraw(params.is_indexed, [&params](this auto& self) {
-        const auto indirect_buffer = self.buffer_cache.GetDrawIndirectBuffer();
+    PrepareDraw(params.is_indexed, [this, &params]() {
+        const auto indirect_buffer = buffer_cache.GetDrawIndirectBuffer();
         const auto buffer_obj = indirect_buffer.first->Handle();
         const auto offset_val = indirect_buffer.second;
         if (params.is_byte_count) {
             const auto stride_val = params.stride;
-            self.scheduler.Record([buffer_obj, offset_val, stride_val](vk::CommandBuffer cmdbuf) {
+            scheduler.Record([buffer_obj, offset_val, stride_val](vk::CommandBuffer cmdbuf) {
                 cmdbuf.DrawIndirectByteCountEXT(1, 0, buffer_obj, offset_val, 0,
                                                 static_cast<u32>(stride_val));
             });
             return;
         }
         if (params.include_count) {
-            const auto count = self.buffer_cache.GetDrawIndirectCount();
+            const auto count = buffer_cache.GetDrawIndirectCount();
             const auto draw_buffer_obj = count.first->Handle();
             const auto offset_base_val = count.second;
-            self.scheduler.Record([draw_buffer_obj, buffer_obj, offset_base_val, offset_val,
+            scheduler.Record([draw_buffer_obj, buffer_obj, offset_base_val, offset_val,
                               params](vk::CommandBuffer cmdbuf) {
                 if (params.is_indexed) {
                     cmdbuf.DrawIndexedIndirectCount(
@@ -321,7 +321,7 @@ void RasterizerVulkan::DrawIndirect() {
             });
             return;
         }
-        self.scheduler.Record([buffer_obj, offset_val, params](vk::CommandBuffer cmdbuf) {
+        scheduler.Record([buffer_obj, offset_val, params](vk::CommandBuffer cmdbuf) {
             if (params.is_indexed) {
                 cmdbuf.DrawIndexedIndirect(buffer_obj, offset_val,
                                            static_cast<u32>(params.max_draw_counts),

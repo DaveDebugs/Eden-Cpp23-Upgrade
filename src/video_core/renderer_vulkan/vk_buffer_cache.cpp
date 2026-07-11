@@ -389,7 +389,9 @@ u32 BufferCacheRuntime::GetStorageBufferAlignment() const {
 void BufferCacheRuntime::TickFrame(Common::SlotVector<Buffer>& slot_buffers) noexcept {
     for (auto it = slot_buffers.begin(); it != slot_buffers.end(); ) {
         if (scheduler.IsFree(it->LastUsageTick())) {
-            it = slot_buffers.erase(it);
+            const auto id = (*it).first;
+            ++it;
+            slot_buffers.erase(id);
         } else {
             ++it;
         }
