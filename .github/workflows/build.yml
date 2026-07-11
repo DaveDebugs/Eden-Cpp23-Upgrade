@@ -14,6 +14,9 @@ jobs:
       with:
         submodules: recursive
         
+    - name: Install Vulkan SDK
+      run: choco install vulkan-sdk
+        
     - name: Configure CMake
       run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
       
@@ -31,7 +34,7 @@ jobs:
     - name: Install Dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y libsdl2-dev libvulkan-dev build-essential cmake
+        sudo apt-get install -y libsdl2-dev libvulkan-dev build-essential cmake glslang-tools
         
     - name: Configure CMake
       run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
