@@ -37,7 +37,7 @@ jobs:
     - name: Install Dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y libsdl2-dev libvulkan-dev build-essential cmake glslang-tools libxtst-dev libxcursor-dev libxi-dev libxrandr-dev libxss-dev xorg-dev
+        sudo apt-get install -y libsdl2-dev libvulkan-dev build-essential cmake glslang-tools libxtst-dev libxcursor-dev libxi-dev libxrandr-dev libxss-dev xorg-dev qt6-base-dev qt6-base-private-dev libqt6svg6-dev libxkbcommon-dev libwayland-dev
         
     - name: Configure CMake
       run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DSDL_X11_XTEST=OFF
