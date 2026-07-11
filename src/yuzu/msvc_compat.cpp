@@ -2,6 +2,7 @@
 #include <utility>
 #include <algorithm>
 
+#if 0
 extern "C" {
 
 void* __std_unique_8(uint64_t* first, uint64_t* last) {
@@ -76,3 +77,4 @@ void __std_rotate(uint8_t* first, uint8_t* mid, uint8_t* last) {
 }
 
 }
+#endif
