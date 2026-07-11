@@ -156,9 +156,11 @@ public:
     void TickFrame();
 
     /// Return a reference to the given image view id
-    template <class Self>
-    [[nodiscard]] auto& GetImageView(this Self&& self, ImageViewId id) noexcept {
-        return self.slot_image_views[id];
+    [[nodiscard]] ImageView& GetImageView(ImageViewId id) noexcept {
+        return slot_image_views[id];
+    }
+    [[nodiscard]] const ImageView& GetImageView(ImageViewId id) const noexcept {
+        return slot_image_views[id];
     }
 
     /// Get the imageview from the graphics descriptor table in the specified index
@@ -180,9 +182,11 @@ public:
     SamplerId GetSamplerId(u32 index, bool compute);
 
     /// Return a reference to the given sampler id
-    template <class Self>
-    [[nodiscard]] auto& GetSampler(this Self&& self, SamplerId id) noexcept {
-        return self.slot_samplers[id];
+    [[nodiscard]] Sampler& GetSampler(SamplerId id) noexcept {
+        return slot_samplers[id];
+    }
+    [[nodiscard]] const Sampler& GetSampler(SamplerId id) const noexcept {
+        return slot_samplers[id];
     }
 
     /// Refresh the state for graphics/compute image view and sampler descriptors
