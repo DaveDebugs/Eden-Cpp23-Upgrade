@@ -14,8 +14,12 @@ jobs:
       with:
         submodules: recursive
         
-    - name: Install Vulkan SDK
-      run: choco install vulkan-sdk
+    - name: Setup Vulkan SDK
+      uses: humbletim/setup-vulkan-sdk@v1.2.0
+      with:
+        vulkan-query-version: 1.3.268.0
+        vulkan-components: Vulkan-Headers, Vulkan-Loader, glslang
+        vulkan-use-cache: true
         
     - name: Configure CMake
       run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
@@ -34,10 +38,10 @@ jobs:
     - name: Install Dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y libsdl2-dev libvulkan-dev build-essential cmake glslang-tools
+        sudo apt-get install -y libsdl2-dev libvulkan-dev build-essential cmake glslang-tools libxtst-dev libxcursor-dev libxi-dev libxrandr-dev libxss-dev xorg-dev
         
     - name: Configure CMake
-      run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
+      run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DSDL_X11_XTEST=OFF
       
     - name: Build
       run: cmake --build build --config Release -j 4
