@@ -37,10 +37,10 @@ jobs:
     - name: Install Dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y libsdl2-dev libvulkan-dev build-essential cmake glslang-tools libxtst-dev libxcursor-dev libxi-dev libxrandr-dev libxss-dev xorg-dev qt6-base-dev qt6-base-private-dev libqt6svg6-dev libxkbcommon-dev libwayland-dev libqt6charts6-dev libavcodec-dev libavutil-dev libavformat-dev libswscale-dev libavfilter-dev
+        sudo apt-get install -y gcc-14 g++-14 libsdl2-dev libvulkan-dev build-essential cmake glslang-tools libxtst-dev libxcursor-dev libxi-dev libxrandr-dev libxss-dev xorg-dev qt6-base-dev qt6-base-private-dev libqt6svg6-dev libxkbcommon-dev libwayland-dev libqt6charts6-dev libavcodec-dev libavutil-dev libavformat-dev libswscale-dev libavfilter-dev
         
     - name: Configure CMake
-      run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DSDL_X11_XTEST=OFF
+      run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DSDL_X11_XTEST=OFF -DCMAKE_C_COMPILER=gcc-14 -DCMAKE_CXX_COMPILER=g++-14
       
     - name: Build
       run: cmake --build build --config Release -j 4
