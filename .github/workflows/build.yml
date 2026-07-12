@@ -26,6 +26,12 @@ jobs:
     - name: Build
       run: cmake --build build --config Release -j 4
       
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: eden-windows
+        path: build/bin/
+        
   build-linux:
     runs-on: ubuntu-latest
     
@@ -44,3 +50,9 @@ jobs:
       
     - name: Build
       run: cmake --build build --config Release -j 4
+      
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: eden-linux
+        path: build/bin/
