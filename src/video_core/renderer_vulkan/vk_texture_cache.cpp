@@ -424,15 +424,16 @@ void SanitizeDepthStencilSwizzle(std::array<SwizzleSource, 4>& swizzle,
     };
 }
 
-[[maybe_unused]] [[nodiscard]] boost::container::small_vector<VkBufferCopy, 16>
-TransformBufferCopies(std::span<const VideoCommon::BufferCopy> copies, size_t buffer_offset) {
-    return copies | std::views::transform([buffer_offset](const VideoCommon::BufferCopy& copy) {
+[[maybe_unused]] [[nodiscard]] boost::container::small_vector<VkBufferCopy, 16> TransformBufferCopies(
+    std::span<const VideoCommon::BufferCopy> copies, size_t buffer_offset) {
+    auto view = copies | std::views::transform([buffer_offset](const VideoCommon::BufferCopy& copy) {
         return VkBufferCopy{
             .srcOffset = static_cast<VkDeviceSize>(copy.src_offset + buffer_offset),
             .dstOffset = static_cast<VkDeviceSize>(copy.dst_offset),
             .size = static_cast<VkDeviceSize>(copy.size),
         };
-    }) | std::ranges::to<boost::container::small_vector<VkBufferCopy, 16>>();
+    });
+    return boost::container::small_vector<VkBufferCopy, 16>(view.begin(), view.end());
 }
 
 [[nodiscard]] boost::container::small_vector<VkBufferImageCopy, 16> TransformBufferImageCopies(
@@ -471,8 +472,8 @@ TransformBufferCopies(std::span<const VideoCommon::BufferCopy> copies, size_t bu
         std::ranges::copy(stencil, std::back_inserter(result));
         return result;
     } else {
-        return copies | std::views::transform(maker(aspect_mask)) |
-               std::ranges::to<boost::container::small_vector<VkBufferImageCopy, 16>>();
+        auto view = copies | std::views::transform(maker(aspect_mask));
+        return boost::container::small_vector<VkBufferImageCopy, 16>(view.begin(), view.end());
     }
 }
 
