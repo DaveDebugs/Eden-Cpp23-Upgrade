@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <span>
 #include "core/crypto/aes_util.h"
 #include "core/crypto/encryption_layer.h"
 #include "core/crypto/key_manager.h"
@@ -14,7 +15,7 @@ class XTSEncryptionLayer : public EncryptionLayer {
 public:
     XTSEncryptionLayer(FileSys::VirtualFile base, Key256 key);
 
-    std::size_t Read(u8* data, std::size_t length, std::size_t offset) const override;
+    std::size_t Read(std::span<u8> data_span, std::size_t offset ) const override;
 
 private:
     // Must be mutable as operations modify cipher contexts.

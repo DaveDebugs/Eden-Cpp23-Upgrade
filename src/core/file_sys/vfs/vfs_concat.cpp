@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2018 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <span>
 #include <algorithm>
 #include <utility>
 
@@ -133,7 +134,9 @@ bool ConcatenatedVfsFile::IsReadable() const {
     return true;
 }
 
-std::size_t ConcatenatedVfsFile::Read(u8* data, std::size_t length, std::size_t offset) const {
+std::size_t ConcatenatedVfsFile::Read(std::span<u8> data_span, std::size_t offset) const {
+    u8* data = data_span.data();
+    std::size_t length = data_span.size_bytes();
     const ConcatenationEntry key{
         .offset = offset,
         .file = nullptr,
@@ -181,7 +184,9 @@ std::size_t ConcatenatedVfsFile::Read(u8* data, std::size_t length, std::size_t 
     return cur_offset - offset;
 }
 
-std::size_t ConcatenatedVfsFile::Write(const u8* data, std::size_t length, std::size_t offset) {
+std::size_t ConcatenatedVfsFile::Write(std::span<const u8> data_span, std::size_t offset) {
+    const u8* data = data_span.data();
+    std::size_t length = data_span.size_bytes();
     return 0;
 }
 

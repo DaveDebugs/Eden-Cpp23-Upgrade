@@ -4,6 +4,7 @@
 // SPDX-FileCopyrightText: Copyright 2018 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <span>
 #include <algorithm>
 #include <array>
 #include <cstring>
@@ -15,7 +16,9 @@ CTREncryptionLayer::CTREncryptionLayer(FileSys::VirtualFile base_, Key128 key_,
                                        std::size_t base_offset_)
     : EncryptionLayer(std::move(base_)), base_offset(base_offset_), cipher(key_, Mode::CTR) {}
 
-std::size_t CTREncryptionLayer::Read(u8* data, std::size_t length, std::size_t offset) const {
+std::size_t CTREncryptionLayer::Read(std::span<u8> data_span, std::size_t offset) const {
+    u8* data = data_span.data();
+    std::size_t length = data_span.size_bytes();
     if (length == 0)
         return 0;
 

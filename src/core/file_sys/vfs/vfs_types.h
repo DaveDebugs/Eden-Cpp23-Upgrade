@@ -25,5 +25,8 @@ struct FileTimeStampRaw {
     u64 modified{};
     u64 padding{};
 };
+static_assert(sizeof(FileTimeStampRaw) == 32, "FileTimeStampRaw must be exactly 32 bytes");
+static_assert(std::is_trivially_copyable_v<FileTimeStampRaw>, "FileTimeStampRaw must be trivially copyable");
+static_assert(std::is_standard_layout_v<FileTimeStampRaw>, "FileTimeStampRaw must be standard layout");
 
 } // namespace FileSys

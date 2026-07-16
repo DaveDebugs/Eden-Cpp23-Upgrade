@@ -4,6 +4,7 @@
 // SPDX-FileCopyrightText: Copyright 2018 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <span>
 #include <algorithm>
 #include <cstddef>
 #include <iterator>
@@ -322,7 +323,9 @@ bool RealVfsFile::IsReadable() const {
     return True(perms & OpenMode::Read);
 }
 
-std::size_t RealVfsFile::Read(u8* data, std::size_t length, std::size_t offset) const {
+std::size_t RealVfsFile::Read(std::span<u8> data_span, std::size_t offset) const {
+    u8* data = data_span.data();
+    std::size_t length = data_span.size_bytes();
     auto lk = base.RefreshReference(path, perms, *reference);
     if (!reference->file || !reference->file->Seek(static_cast<s64>(offset))) {
         return 0;
@@ -330,7 +333,9 @@ std::size_t RealVfsFile::Read(u8* data, std::size_t length, std::size_t offset) 
     return reference->file->ReadSpan(std::span{data, length});
 }
 
-std::size_t RealVfsFile::Write(const u8* data, std::size_t length, std::size_t offset) {
+std::size_t RealVfsFile::Write(std::span<const u8> data_span, std::size_t offset) {
+    const u8* data = data_span.data();
+    std::size_t length = data_span.size_bytes();
     size.reset();
     auto lk = base.RefreshReference(path, perms, *reference);
     if (!reference->file || !reference->file->Seek(static_cast<s64>(offset))) {

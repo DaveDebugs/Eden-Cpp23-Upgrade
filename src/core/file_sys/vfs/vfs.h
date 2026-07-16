@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <span>
 #include <functional>
 #include <map>
 #include <memory>
@@ -114,10 +115,23 @@ public:
 
     // The primary method of reading from the file. Reads length bytes into data starting at offset
     // into file. Returns number of bytes successfully read.
-    virtual std::size_t Read(u8* data, std::size_t length, std::size_t offset = 0) const = 0;
+    virtual std::size_t Read(std::span<u8> data, std::size_t offset = 0) const = 0;
+    
+    // Legacy helper for backward compatibility
+    [[deprecated("Use std::span overload instead")]]
+    std::size_t Read(u8* data, std::size_t length, std::size_t offset = 0) const {
+        return Read(std::span<u8>(data, length), offset);
+    }
+
     // The primary method of writing to the file. Writes length bytes from data starting at offset
     // into file. Returns number of bytes successfully written.
-    virtual std::size_t Write(const u8* data, std::size_t length, std::size_t offset = 0) = 0;
+    virtual std::size_t Write(std::span<const u8> data, std::size_t offset = 0) = 0;
+
+    // Legacy helper for backward compatibility
+    [[deprecated("Use std::span overload instead")]]
+    std::size_t Write(const u8* data, std::size_t length, std::size_t offset = 0) {
+        return Write(std::span<const u8>(data, length), offset);
+    }
 
     // Reads exactly one byte at the offset provided, returning std::nullopt on error.
     virtual std::optional<u8> ReadByte(std::size_t offset = 0) const;
@@ -130,10 +144,9 @@ public:
     // Reads an array of type T, size number_elements starting at offset.
     // Returns the number of bytes (sizeof(T)*number_elements) read successfully.
     template <typename T>
-    std::size_t ReadArray(T* data, std::size_t number_elements, std::size_t offset = 0) const {
+    std::size_t ReadArray(std::span<T> data, std::size_t offset = 0) const {
         static_assert(std::is_trivially_copyable_v<T>, "Data type must be trivially copyable.");
-
-        return Read(reinterpret_cast<u8*>(data), number_elements * sizeof(T), offset);
+        return Read(std::span<u8>(reinterpret_cast<u8*>(data.data()), data.size_bytes()), offset);
     }
 
     // Reads size bytes into the memory starting at data starting at offset into the file.
@@ -149,7 +162,7 @@ public:
     template <typename T>
     std::size_t ReadObject(T* data, std::size_t offset = 0) const {
         static_assert(std::is_trivially_copyable_v<T>, "Data type must be trivially copyable.");
-        return Read(reinterpret_cast<u8*>(data), sizeof(T), offset);
+        return Read(std::span<u8>(reinterpret_cast<u8*>(data), sizeof(T)), offset);
     }
 
     // Writes exactly one byte to offset in file and returns whether or not the byte was written
@@ -162,9 +175,9 @@ public:
     // Writes an array of type T, size number_elements to offset in file.
     // Returns the number of bytes (sizeof(T)*number_elements) written successfully.
     template <typename T>
-    std::size_t WriteArray(const T* data, std::size_t number_elements, std::size_t offset = 0) {
+    std::size_t WriteArray(std::span<const T> data, std::size_t offset = 0) {
         static_assert(std::is_trivially_copyable_v<T>, "Data type must be trivially copyable.");
-        return Write(reinterpret_cast<const u8*>(data), number_elements * sizeof(T), offset);
+        return Write(std::span<const u8>(reinterpret_cast<const u8*>(data.data()), data.size_bytes()), offset);
     }
 
     // Writes size bytes starting at memory location data to offset in file.

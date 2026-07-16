@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <span>
 #include <map>
 #include <mutex>
 #include <optional>
@@ -90,8 +91,8 @@ public:
     VirtualDir GetContainingDirectory() const override;
     bool IsWritable() const override;
     bool IsReadable() const override;
-    std::size_t Read(u8* data, std::size_t length, std::size_t offset) const override;
-    std::size_t Write(const u8* data, std::size_t length, std::size_t offset) override;
+    std::size_t Read(std::span<u8> data_span, std::size_t offset ) const override;
+    std::size_t Write(std::span<const u8> data_span, std::size_t offset ) override;
     bool Rename(std::string_view name) override;
 
 private:

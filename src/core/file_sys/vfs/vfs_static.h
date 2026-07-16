@@ -45,13 +45,13 @@ public:
         return true;
     }
 
-    std::size_t Read(u8* data, std::size_t length, std::size_t offset) const override {
-        const auto read = (std::min)(length, size - offset);
-        std::fill(data, data + read, value);
+    std::size_t Read(std::span<u8> data, std::size_t offset) const override {
+        const auto read = (std::min)(data.size_bytes(), size - offset);
+        std::fill(data.begin(), data.begin() + read, value);
         return read;
     }
 
-    std::size_t Write(const u8* data, std::size_t length, std::size_t offset) override {
+    std::size_t Write(std::span<const u8> data, std::size_t offset) override {
         return 0;
     }
 

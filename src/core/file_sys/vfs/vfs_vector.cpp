@@ -4,6 +4,7 @@
 // SPDX-FileCopyrightText: Copyright 2018 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <span>
 #include <algorithm>
 #include <utility>
 #include "core/file_sys/vfs/vfs_vector.h"
@@ -39,13 +40,17 @@ bool VectorVfsFile::IsReadable() const {
     return true;
 }
 
-std::size_t VectorVfsFile::Read(u8* data_, std::size_t length, std::size_t offset) const {
+std::size_t VectorVfsFile::Read(std::span<u8> data__span, std::size_t offset) const {
+    u8* data_ = data__span.data();
+    std::size_t length = data__span.size_bytes();
     const auto read = (std::min)(length, data.size() - offset);
     std::memcpy(data_, data.data() + offset, read);
     return read;
 }
 
-std::size_t VectorVfsFile::Write(const u8* data_, std::size_t length, std::size_t offset) {
+std::size_t VectorVfsFile::Write(std::span<const u8> data__span, std::size_t offset) {
+    const u8* data_ = data__span.data();
+    std::size_t length = data__span.size_bytes();
     if (offset + length > data.size())
         data.resize(offset + length);
     const auto write = (std::min)(length, data.size() - offset);

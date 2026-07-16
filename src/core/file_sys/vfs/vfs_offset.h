@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <span>
 #include <memory>
 
 #include "core/file_sys/vfs/vfs.h"
@@ -25,8 +26,8 @@ public:
     VirtualDir GetContainingDirectory() const override;
     bool IsWritable() const override;
     bool IsReadable() const override;
-    std::size_t Read(u8* data, std::size_t length, std::size_t offset) const override;
-    std::size_t Write(const u8* data, std::size_t length, std::size_t offset) override;
+    std::size_t Read(std::span<u8> data_span, std::size_t offset ) const override;
+    std::size_t Write(std::span<const u8> data_span, std::size_t offset ) override;
     std::optional<u8> ReadByte(std::size_t offset) const override;
     std::vector<u8> ReadBytes(std::size_t size, std::size_t offset) const override;
     std::vector<u8> ReadAllBytes() const override;

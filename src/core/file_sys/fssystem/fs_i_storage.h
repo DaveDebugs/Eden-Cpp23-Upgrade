@@ -50,7 +50,7 @@ public:
         return false;
     }
 
-    virtual size_t Write(const u8* buffer, size_t size, size_t offset) override {
+    virtual size_t Write(std::span<const u8> buffer, size_t offset) override {
         return 0;
     }
 };

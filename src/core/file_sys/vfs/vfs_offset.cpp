@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2018 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <span>
 #include <algorithm>
 #include <utility>
 
@@ -47,11 +48,15 @@ bool OffsetVfsFile::IsReadable() const {
     return file->IsReadable();
 }
 
-std::size_t OffsetVfsFile::Read(u8* data, std::size_t length, std::size_t r_offset) const {
+std::size_t OffsetVfsFile::Read(std::span<u8> data_span, std::size_t r_offset) const {
+    u8* data = data_span.data();
+    std::size_t length = data_span.size_bytes();
     return file->Read(data, TrimToFit(length, r_offset), offset + r_offset);
 }
 
-std::size_t OffsetVfsFile::Write(const u8* data, std::size_t length, std::size_t r_offset) {
+std::size_t OffsetVfsFile::Write(std::span<const u8> data_span, std::size_t r_offset) {
+    const u8* data = data_span.data();
+    std::size_t length = data_span.size_bytes();
     return file->Write(data, TrimToFit(length, r_offset), offset + r_offset);
 }
 

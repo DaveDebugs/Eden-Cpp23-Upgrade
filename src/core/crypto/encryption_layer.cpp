@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2018 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <span>
 #include "core/crypto/encryption_layer.h"
 
 namespace Core::Crypto {
@@ -31,7 +32,9 @@ bool EncryptionLayer::IsReadable() const {
     return true;
 }
 
-std::size_t EncryptionLayer::Write(const u8* data, std::size_t length, std::size_t offset) {
+std::size_t EncryptionLayer::Write(std::span<const u8> data_span, std::size_t offset) {
+    const u8* data = data_span.data();
+    std::size_t length = data_span.size_bytes();
     return 0;
 }
 

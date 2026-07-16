@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <span>
 #include "common/common_types.h"
 #include "core/file_sys/vfs/vfs.h"
 
@@ -22,7 +23,7 @@ public:
     std::shared_ptr<FileSys::VfsDirectory> GetContainingDirectory() const override;
     bool IsWritable() const override;
     bool IsReadable() const override;
-    std::size_t Write(const u8* data, std::size_t length, std::size_t offset) override;
+    std::size_t Write(std::span<const u8> data_span, std::size_t offset ) override;
     bool Rename(std::string_view name) override;
 
 protected:

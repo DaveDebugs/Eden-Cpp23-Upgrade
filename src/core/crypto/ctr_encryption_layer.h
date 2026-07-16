@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <span>
 #include <array>
 
 #include "core/crypto/aes_util.h"
@@ -18,7 +19,7 @@ public:
 
     CTREncryptionLayer(FileSys::VirtualFile base_, Key128 key_, std::size_t base_offset_);
 
-    std::size_t Read(u8* data, std::size_t length, std::size_t offset) const override;
+    std::size_t Read(std::span<u8> data_span, std::size_t offset ) const override;
 
     void SetIV(const IVData& iv);
 

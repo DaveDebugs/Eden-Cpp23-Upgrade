@@ -4,6 +4,7 @@
 // SPDX-FileCopyrightText: Copyright 2018 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <span>
 #include <algorithm>
 #include <array>
 #include <cstring>
@@ -16,7 +17,9 @@ constexpr std::size_t XTS_SECTOR_SIZE = 0x4000;
 XTSEncryptionLayer::XTSEncryptionLayer(FileSys::VirtualFile base_, Key256 key_)
     : EncryptionLayer(std::move(base_)), cipher(key_, Mode::XTS) {}
 
-std::size_t XTSEncryptionLayer::Read(u8* data, std::size_t length, std::size_t offset) const {
+std::size_t XTSEncryptionLayer::Read(std::span<u8> data_span, std::size_t offset) const {
+    u8* data = data_span.data();
+    std::size_t length = data_span.size_bytes();
     if (length == 0)
         return 0;
 
