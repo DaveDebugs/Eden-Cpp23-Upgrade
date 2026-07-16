@@ -169,7 +169,10 @@ protected:
      */
     template <typename T = Self>
     void RegisterHandlers(const FunctionInfoTyped<T>* functions, std::size_t n) {
-        RegisterHandlersBase(functions, n);
+        handlers.reserve(handlers.size() + n);
+        for (std::size_t i = 0; i < n; ++i) {
+            handlers.emplace_hint(handlers.cend(), functions[i].expected_header, functions[i]);
+        }
     }
 
     /// Registers handlers in the service.
@@ -184,7 +187,10 @@ protected:
      */
     template <typename T = Self>
     void RegisterHandlersTipc(const FunctionInfoTyped<T>* functions, std::size_t n) {
-        RegisterHandlersBaseTipc(functions, n);
+        handlers_tipc.reserve(handlers_tipc.size() + n);
+        for (std::size_t i = 0; i < n; ++i) {
+            handlers_tipc.emplace_hint(handlers_tipc.cend(), functions[i].expected_header, functions[i]);
+        }
     }
 
 protected:
