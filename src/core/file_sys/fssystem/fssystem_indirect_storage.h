@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <span>
 #include "core/file_sys/errors.h"
 #include "core/file_sys/fssystem/fs_i_storage.h"
 #include "core/file_sys/fssystem/fssystem_bucket_tree.h"
@@ -103,7 +104,7 @@ public:
         return offsets.end_offset;
     }
 
-    virtual size_t Read(u8* buffer, size_t size, size_t offset) const override;
+    virtual size_t Read(std::span<u8> buffer_span, size_t offset) const override;
 
 public:
     static constexpr s64 QueryHeaderStorageSize() {

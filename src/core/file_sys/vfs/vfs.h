@@ -149,12 +149,19 @@ public:
         return Read(std::span<u8>(reinterpret_cast<u8*>(data.data()), data.size_bytes()), offset);
     }
 
+    // Legacy helper for backward compatibility
+    template <typename T>
+    [[deprecated("Use std::span overload instead")]]
+    std::size_t ReadArray(T* data, std::size_t length, std::size_t offset = 0) const {
+        return ReadArray(std::span<T>(data, length), offset);
+    }
+
     // Reads size bytes into the memory starting at data starting at offset into the file.
     // Returns the number of bytes read successfully.
     template <typename T>
     std::size_t ReadBytes(T* data, std::size_t size, std::size_t offset = 0) const {
         static_assert(std::is_trivially_copyable_v<T>, "Data type must be trivially copyable.");
-        return Read(reinterpret_cast<u8*>(data), size, offset);
+        return Read(std::span<u8>(reinterpret_cast<u8*>(data), size), offset);
     }
 
     // Reads one object of type T starting at offset in file.
@@ -180,12 +187,19 @@ public:
         return Write(std::span<const u8>(reinterpret_cast<const u8*>(data.data()), data.size_bytes()), offset);
     }
 
+    // Legacy helper for backward compatibility
+    template <typename T>
+    [[deprecated("Use std::span overload instead")]]
+    std::size_t WriteArray(const T* data, std::size_t length, std::size_t offset = 0) {
+        return WriteArray(std::span<const T>(data, length), offset);
+    }
+
     // Writes size bytes starting at memory location data to offset in file.
     // Returns the number of bytes written successfully.
     template <typename T>
     std::size_t WriteBytes(const T* data, std::size_t size, std::size_t offset = 0) {
         static_assert(std::is_trivially_copyable_v<T>, "Data type must be trivially copyable.");
-        return Write(reinterpret_cast<const u8*>(data), size, offset);
+        return Write(std::span<const u8>(reinterpret_cast<const u8*>(data), size), offset);
     }
 
     // Writes one object of type T to offset in file.

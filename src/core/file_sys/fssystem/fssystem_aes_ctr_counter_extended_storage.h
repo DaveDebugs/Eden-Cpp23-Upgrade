@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <span>
 #include <optional>
 
 #include "common/literals.h"
@@ -89,7 +90,7 @@ public:
         return m_table.IsInitialized();
     }
 
-    virtual size_t Read(u8* buffer, size_t size, size_t offset) const override;
+    virtual size_t Read(std::span<u8> buffer_span, size_t offset) const override;
 
     virtual size_t GetSize() const override {
         BucketTree::Offsets offsets{};

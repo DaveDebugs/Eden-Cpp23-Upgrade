@@ -4,6 +4,7 @@
 // SPDX-FileCopyrightText: Copyright 2023 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <span>
 #include <boost/container/static_vector.hpp>
 #include "common/alignment.h"
 #include "common/swap.h"
@@ -38,7 +39,9 @@ AesCtrStorage::AesCtrStorage(VirtualFile base, const void* key, size_t key_size,
     m_cipher.emplace(m_key, Core::Crypto::Mode::CTR);
 }
 
-size_t AesCtrStorage::Read(u8* buffer, size_t size, size_t offset) const {
+size_t AesCtrStorage::Read(std::span<u8> buffer_span, size_t offset) const {
+        u8* buffer = buffer_span.data();
+        size_t size = buffer_span.size_bytes();
     // Allow zero-size reads.
     if (size == 0) {
         return size;
@@ -66,7 +69,9 @@ size_t AesCtrStorage::Read(u8* buffer, size_t size, size_t offset) const {
     return size;
 }
 
-size_t AesCtrStorage::Write(const u8* buffer, size_t size, size_t offset) {
+size_t AesCtrStorage::Write(std::span<const u8> buffer_span, size_t offset) {
+        const u8* buffer = buffer_span.data();
+        size_t size = buffer_span.size_bytes();
     // Allow zero-size writes.
     if (size == 0) {
         return size;
@@ -113,3 +118,4 @@ size_t AesCtrStorage::GetSize() const {
 }
 
 } // namespace FileSys
+

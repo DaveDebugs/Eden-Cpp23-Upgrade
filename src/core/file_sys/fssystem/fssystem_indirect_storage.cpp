@@ -4,6 +4,7 @@
 // SPDX-FileCopyrightText: Copyright 2023 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <span>
 #include "core/file_sys/errors.h"
 #include "core/file_sys/fssystem/fssystem_indirect_storage.h"
 
@@ -99,7 +100,9 @@ Result IndirectStorage::GetEntryList(Entry* out_entries, s32* out_entry_count, s
     R_SUCCEED();
 }
 
-size_t IndirectStorage::Read(u8* buffer, size_t size, size_t offset) const {
+size_t IndirectStorage::Read(std::span<u8> buffer_span, size_t offset) const {
+        u8* buffer = buffer_span.data();
+        size_t size = buffer_span.size_bytes();
     // Validate pre-conditions.
     ASSERT(this->IsInitialized());
     ASSERT(buffer != nullptr);
@@ -120,3 +123,4 @@ size_t IndirectStorage::Read(u8* buffer, size_t size, size_t offset) const {
     return size;
 }
 } // namespace FileSys
+

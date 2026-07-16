@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2025 Eden Emulator Project
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include <span>
 #include "common/alignment.h"
 #include "common/scope_exit.h"
 #include "core/file_sys/fssystem/fssystem_hierarchical_sha3_storage.h"
@@ -47,7 +48,9 @@ Result HierarchicalSha3Storage::Initialize(VirtualFile* base_storages, s32 layer
     R_SUCCEED();
 }
 
-size_t HierarchicalSha3Storage::Read(u8* buffer, size_t size, size_t offset) const {
+size_t HierarchicalSha3Storage::Read(std::span<u8> buffer_span, size_t offset) const {
+        u8* buffer = buffer_span.data();
+        size_t size = buffer_span.size_bytes();
     if (size == 0)
         return size;
     ASSERT(buffer != nullptr);
@@ -55,3 +58,4 @@ size_t HierarchicalSha3Storage::Read(u8* buffer, size_t size, size_t offset) con
 }
 
 } // namespace FileSys
+

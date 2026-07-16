@@ -4,6 +4,7 @@
 // SPDX-FileCopyrightText: Copyright 2023 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <span>
 #include "core/file_sys/fssystem/fssystem_aes_ctr_counter_extended_storage.h"
 #include "core/file_sys/fssystem/fssystem_aes_ctr_storage.h"
 #include "core/file_sys/fssystem/fssystem_nca_header.h"
@@ -153,7 +154,9 @@ Result AesCtrCounterExtendedStorage::GetEntryList(Entry* out_entries, s32* out_e
     R_SUCCEED();
 }
 
-size_t AesCtrCounterExtendedStorage::Read(u8* buffer, size_t size, size_t offset) const {
+size_t AesCtrCounterExtendedStorage::Read(std::span<u8> buffer_span, size_t offset) const {
+        u8* buffer = buffer_span.data();
+        size_t size = buffer_span.size_bytes();
     // Validate preconditions.
     ASSERT(this->IsInitialized());
 
@@ -249,3 +252,4 @@ void SoftwareDecryptor::Decrypt(u8* buf, size_t buf_size, const std::array<u8, A
 }
 
 } // namespace FileSys
+

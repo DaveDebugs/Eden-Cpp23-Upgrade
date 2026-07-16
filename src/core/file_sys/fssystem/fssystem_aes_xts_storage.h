@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <span>
 #include <mutex>
 #include <optional>
 
@@ -28,7 +29,7 @@ public:
     AesXtsStorage(VirtualFile base, const void* key1, const void* key2, size_t key_size,
                   const void* iv, size_t iv_size, size_t block_size);
 
-    virtual size_t Read(u8* buffer, size_t size, size_t offset) const override;
+    virtual size_t Read(std::span<u8> buffer_span, size_t offset) const override;
     virtual size_t GetSize() const override;
 
 private:

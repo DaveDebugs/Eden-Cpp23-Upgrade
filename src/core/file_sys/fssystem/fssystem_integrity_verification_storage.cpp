@@ -7,6 +7,7 @@
 // SPDX-FileCopyrightText: Copyright 2023 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <span>
 #include "common/alignment.h"
 #include "core/file_sys/fssystem/fssystem_integrity_verification_storage.h"
 
@@ -53,7 +54,9 @@ void IntegrityVerificationStorage::Finalize() {
     m_data_storage = VirtualFile();
 }
 
-size_t IntegrityVerificationStorage::Read(u8* buffer, size_t size, size_t offset) const {
+size_t IntegrityVerificationStorage::Read(std::span<u8> buffer_span, size_t offset) const {
+        u8* buffer = buffer_span.data();
+        size_t size = buffer_span.size_bytes();
     // Succeed if zero size.
     if (size == 0) {
         return size;
@@ -95,3 +98,4 @@ size_t IntegrityVerificationStorage::GetSize() const {
 }
 
 } // namespace FileSys
+

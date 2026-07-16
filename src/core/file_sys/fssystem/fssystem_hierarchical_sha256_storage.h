@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <span>
 #include <mutex>
 
 #include "core/file_sys/errors.h"
@@ -29,7 +30,7 @@ public:
         return m_base_storage->GetSize();
     }
 
-    virtual size_t Read(u8* buffer, size_t length, size_t offset) const override;
+    virtual size_t Read(std::span<u8> buffer_span, size_t offset) const override;
 
 private:
     VirtualFile m_base_storage;

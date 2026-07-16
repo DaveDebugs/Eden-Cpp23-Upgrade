@@ -47,14 +47,16 @@ public:
     bool IsReadable() const override {
         return true;
     }
+    using VfsFile::Read;
+    using VfsFile::Write;
 
-    std::size_t Read(u8* data_, std::size_t length, std::size_t offset) const override {
-        const auto read = (std::min)(length, size - offset);
-        std::memcpy(data_, data.data() + offset, read);
+    std::size_t Read(std::span<u8> data_, std::size_t offset) const override {
+        const auto read = (std::min)(data_.size_bytes(), size - offset);
+        std::memcpy(data_.data(), data.data() + offset, read);
         return read;
     }
 
-    std::size_t Write(const u8* data_, std::size_t length, std::size_t offset) override {
+    std::size_t Write(std::span<const u8> data_, std::size_t offset) override {
         return 0;
     }
 
@@ -88,6 +90,8 @@ public:
     VirtualDir GetContainingDirectory() const override;
     bool IsWritable() const override;
     bool IsReadable() const override;
+    using VfsFile::Read;
+    using VfsFile::Write;
     std::size_t Read(std::span<u8> data_span, std::size_t offset ) const override;
     std::size_t Write(std::span<const u8> data_span, std::size_t offset ) override;
     bool Rename(std::string_view name) override;

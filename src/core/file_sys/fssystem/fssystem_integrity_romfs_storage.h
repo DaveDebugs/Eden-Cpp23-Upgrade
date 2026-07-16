@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <span>
 #include "core/file_sys/fssystem/fssystem_hierarchical_integrity_verification_storage.h"
 #include "core/file_sys/fssystem/fssystem_nca_header.h"
 #include "core/file_sys/vfs/vfs_vector.h"
@@ -25,8 +26,8 @@ public:
         int max_data_cache_entries, int max_hash_cache_entries, s8 buffer_level);
     void Finalize();
 
-    virtual size_t Read(u8* buffer, size_t size, size_t offset) const override {
-        return m_integrity_storage.Read(buffer, size, offset);
+    virtual size_t Read(std::span<u8> buffer_span, size_t offset) const override {
+        return m_integrity_storage.Read(buffer_span, offset);
     }
 
     virtual size_t GetSize() const override {

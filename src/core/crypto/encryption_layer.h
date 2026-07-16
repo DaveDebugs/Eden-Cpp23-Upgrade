@@ -15,7 +15,7 @@ class EncryptionLayer : public FileSys::VfsFile {
 public:
     explicit EncryptionLayer(FileSys::VirtualFile base);
 
-    std::size_t Read(u8* data, std::size_t length, std::size_t offset) const override = 0;
+    std::size_t Read(std::span<u8> data, std::size_t offset) const override = 0;
 
     std::string GetName() const override;
     std::size_t GetSize() const override;

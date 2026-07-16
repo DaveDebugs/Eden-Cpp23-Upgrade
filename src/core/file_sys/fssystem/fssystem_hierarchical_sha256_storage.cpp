@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2023 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <span>
 #include "common/alignment.h"
 #include "common/scope_exit.h"
 #include "core/file_sys/fssystem/fssystem_hierarchical_sha256_storage.h"
@@ -54,7 +55,9 @@ Result HierarchicalSha256Storage::Initialize(VirtualFile* base_storages, s32 lay
     R_SUCCEED();
 }
 
-size_t HierarchicalSha256Storage::Read(u8* buffer, size_t size, size_t offset) const {
+size_t HierarchicalSha256Storage::Read(std::span<u8> buffer_span, size_t offset) const {
+        u8* buffer = buffer_span.data();
+        size_t size = buffer_span.size_bytes();
     // Succeed if zero-size.
     if (size == 0) {
         return size;
@@ -68,3 +71,4 @@ size_t HierarchicalSha256Storage::Read(u8* buffer, size_t size, size_t offset) c
 }
 
 } // namespace FileSys
+

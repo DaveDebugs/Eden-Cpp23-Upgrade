@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <span>
 #include "common/literals.h"
 
 #include "core/file_sys/errors.h"
@@ -933,7 +934,9 @@ public:
         return ret;
     }
 
-    virtual size_t Read(u8* buffer, size_t size, size_t offset) const override {
+    virtual size_t Read(std::span<u8> buffer_span, size_t offset) const override {
+        u8* buffer = buffer_span.data();
+        size_t size = buffer_span.size_bytes();
         if (R_SUCCEEDED(m_cache_manager.Read(m_core, offset, buffer, size))) {
             return size;
         } else {

@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <span>
 #include <optional>
 
 #include "core/crypto/aes_util.h"
@@ -29,8 +30,8 @@ public:
     AesCtrStorage(VirtualFile base, const void* key, size_t key_size, const void* iv,
                   size_t iv_size);
 
-    virtual size_t Read(u8* buffer, size_t size, size_t offset) const override;
-    virtual size_t Write(const u8* buffer, size_t size, size_t offset) override;
+    virtual size_t Read(std::span<u8> buffer_span, size_t offset) const override;
+    virtual size_t Write(std::span<const u8> buffer_span, size_t offset) override;
     virtual size_t GetSize() const override;
 
 private:

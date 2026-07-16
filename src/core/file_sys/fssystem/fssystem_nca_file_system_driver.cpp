@@ -4,6 +4,7 @@
 // SPDX-FileCopyrightText: Copyright 2023 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <span>
 #include "core/file_sys/fssystem/fssystem_aes_ctr_counter_extended_storage.h"
 #include "core/file_sys/fssystem/fssystem_aes_ctr_storage.h"
 #include "core/file_sys/fssystem/fssystem_aes_xts_storage.h"
@@ -43,7 +44,9 @@ public:
     SharedNcaBodyStorage(VirtualFile s, std::shared_ptr<NcaReader> r)
         : m_storage(std::move(s)), m_nca_reader(std::move(r)) {}
 
-    virtual size_t Read(u8* buffer, size_t size, size_t offset) const override {
+    virtual size_t Read(std::span<u8> buffer_span, size_t offset) const override {
+        u8* buffer = buffer_span.data();
+        size_t size = buffer_span.size_bytes();
         // Validate pre-conditions.
         ASSERT(m_storage != nullptr);
 

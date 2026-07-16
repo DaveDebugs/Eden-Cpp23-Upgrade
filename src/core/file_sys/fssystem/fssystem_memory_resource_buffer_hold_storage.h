@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <span>
 #include "core/file_sys/fssystem/fs_i_storage.h"
 
 namespace FileSys {
@@ -31,7 +32,9 @@ public:
     }
 
 public:
-    virtual size_t Read(u8* buffer, size_t size, size_t offset) const override {
+    virtual size_t Read(std::span<u8> buffer_span, size_t offset) const override {
+        u8* buffer = buffer_span.data();
+        size_t size = buffer_span.size_bytes();
         // Check pre-conditions.
         ASSERT(m_storage != nullptr);
 
@@ -45,7 +48,9 @@ public:
         return m_storage->GetSize();
     }
 
-    virtual size_t Write(const u8* buffer, size_t size, size_t offset) override {
+    virtual size_t Write(std::span<const u8> buffer_span, size_t offset) override {
+        const u8* buffer = buffer_span.data();
+        size_t size = buffer_span.size_bytes();
         // Check pre-conditions.
         ASSERT(m_storage != nullptr);
 

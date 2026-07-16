@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <span>
 #include "core/file_sys/fssystem/fssystem_indirect_storage.h"
 
 namespace FileSys {
@@ -24,7 +25,9 @@ private:
             return (std::numeric_limits<size_t>::max)();
         }
 
-        virtual size_t Read(u8* buffer, size_t size, size_t offset) const override {
+        virtual size_t Read(std::span<u8> buffer_span, size_t offset) const override {
+        u8* buffer = buffer_span.data();
+        size_t size = buffer_span.size_bytes();
             ASSERT(buffer != nullptr || size == 0);
 
             if (size > 0) {
@@ -61,7 +64,7 @@ public:
         this->SetZeroStorage();
     }
 
-    virtual size_t Read(u8* buffer, size_t size, size_t offset) const override;
+    virtual size_t Read(std::span<u8> buffer_span, size_t offset) const override;
 
 private:
     void SetZeroStorage() {

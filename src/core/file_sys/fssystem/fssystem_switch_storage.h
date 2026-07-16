@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <span>
 #include "core/file_sys/fssystem/fs_i_storage.h"
 
 namespace FileSys {
@@ -22,7 +23,9 @@ public:
         : m_inside_region_storage(std::move(i)), m_outside_region_storage(std::move(o)),
           m_region(r) {}
 
-    virtual size_t Read(u8* buffer, size_t size, size_t offset) const override {
+    virtual size_t Read(std::span<u8> buffer_span, size_t offset) const override {
+        u8* buffer = buffer_span.data();
+        size_t size = buffer_span.size_bytes();
         // Process until we're done.
         size_t processed = 0;
         while (processed < size) {

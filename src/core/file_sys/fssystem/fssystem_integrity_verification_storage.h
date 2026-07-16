@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <span>
 #include <optional>
 
 #include "core/file_sys/fssystem/fs_i_storage.h"
@@ -34,7 +35,7 @@ public:
                     s64 upper_layer_verif_block_size, bool is_real_data);
     void Finalize();
 
-    virtual size_t Read(u8* buffer, size_t size, size_t offset) const override;
+    virtual size_t Read(std::span<u8> buffer_span, size_t offset) const override;
     virtual size_t GetSize() const override;
 
     s64 GetBlockSize() const {

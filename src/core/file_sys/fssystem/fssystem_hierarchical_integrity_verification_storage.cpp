@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2023 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <span>
 #include "core/file_sys/fssystem/fssystem_hierarchical_integrity_verification_storage.h"
 #include "core/file_sys/vfs/vfs_offset.h"
 
@@ -103,8 +104,9 @@ void HierarchicalIntegrityVerificationStorage::Finalize() {
     }
 }
 
-size_t HierarchicalIntegrityVerificationStorage::Read(u8* buffer, size_t size,
-                                                      size_t offset) const {
+size_t HierarchicalIntegrityVerificationStorage::Read(std::span<u8> buffer_span, size_t offset) const {
+        u8* buffer = buffer_span.data();
+        size_t size = buffer_span.size_bytes();
     // Validate preconditions.
     ASSERT(m_data_size >= 0);
 
@@ -125,3 +127,4 @@ size_t HierarchicalIntegrityVerificationStorage::GetSize() const {
 }
 
 } // namespace FileSys
+

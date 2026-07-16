@@ -26,6 +26,8 @@ public:
     VirtualDir GetContainingDirectory() const override;
     bool IsWritable() const override;
     bool IsReadable() const override;
+    using VfsFile::Read;
+    using VfsFile::Write;
     std::size_t Read(std::span<u8> data_span, std::size_t offset ) const override;
     std::size_t Write(std::span<const u8> data_span, std::size_t offset ) override;
     std::optional<u8> ReadByte(std::size_t offset) const override;

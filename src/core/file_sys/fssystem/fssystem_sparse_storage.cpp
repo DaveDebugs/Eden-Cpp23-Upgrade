@@ -4,11 +4,14 @@
 // SPDX-FileCopyrightText: Copyright 2023 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <span>
 #include "core/file_sys/fssystem/fssystem_sparse_storage.h"
 
 namespace FileSys {
 
-size_t SparseStorage::Read(u8* buffer, size_t size, size_t offset) const {
+size_t SparseStorage::Read(std::span<u8> buffer_span, size_t offset) const {
+        u8* buffer = buffer_span.data();
+        size_t size = buffer_span.size_bytes();
     // Validate preconditions.
     ASSERT(this->IsInitialized());
     ASSERT(buffer != nullptr);
@@ -40,3 +43,4 @@ size_t SparseStorage::Read(u8* buffer, size_t size, size_t offset) const {
 }
 
 } // namespace FileSys
+
