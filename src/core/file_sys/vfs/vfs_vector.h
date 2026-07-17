@@ -51,6 +51,7 @@ public:
     using VfsFile::Write;
 
     std::size_t Read(std::span<u8> data_, std::size_t offset) const override {
+        if (offset >= size) return 0;
         const auto read = (std::min)(data_.size_bytes(), size - offset);
         std::memcpy(data_.data(), data.data() + offset, read);
         return read;

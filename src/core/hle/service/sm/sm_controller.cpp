@@ -15,6 +15,7 @@
 #include "core/hle/service/ipc_helpers.h"
 #include "core/hle/service/server_manager.h"
 #include "core/hle/service/sm/sm_controller.h"
+#include "common/logging.h"
 
 namespace Service::SM {
 
@@ -121,6 +122,10 @@ Controller::Controller(Core::System& system_) : ServiceFramework{system_, "IpcCo
         {5, &Controller::SetPointerBufferSize, "SetPointerBufferSize"}, //TODO: where does this come from
     };
     RegisterHandlers(functions);
+    LOG_INFO(Service, "IpcController registered {} handlers", handlers.size());
+    for (const auto& [key, val] : handlers) {
+        LOG_INFO(Service, "  IpcController handler[{}] = {}", key, val.name);
+    }
 }
 
 Controller::~Controller() = default;

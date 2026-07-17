@@ -43,6 +43,7 @@ bool VectorVfsFile::IsReadable() const {
 std::size_t VectorVfsFile::Read(std::span<u8> data__span, std::size_t offset) const {
     u8* data_ = data__span.data();
     std::size_t length = data__span.size_bytes();
+    if (offset >= data.size()) return 0;
     const auto read = (std::min)(length, data.size() - offset);
     std::memcpy(data_, data.data() + offset, read);
     return read;

@@ -33,6 +33,17 @@
 
 #include <array>
 #include <cstdint>
+#include <format>
+
+// In C++23, MSVC treats unsigned char as a character type in std::format.
+// This causes crashes when using integer format specs like {:02X} on u8 values.
+// This specialization must be visible before ANY std::format call with u8.
+template <>
+struct std::formatter<unsigned char, char> : std::formatter<unsigned int, char> {
+    auto format(unsigned char value, auto& ctx) const {
+        return std::formatter<unsigned int, char>::format(static_cast<unsigned int>(value), ctx);
+    }
+};
 
 using u8 = std::uint8_t;   ///< 8-bit unsigned byte
 using u16 = std::uint16_t; ///< 16-bit unsigned short

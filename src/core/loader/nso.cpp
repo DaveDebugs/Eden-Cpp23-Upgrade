@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cinttypes>
+#include <cstdio>
 #include <cstring>
 #include <vector>
 
@@ -67,6 +68,8 @@ FileType AppLoader_NSO::IdentifyType(const FileSys::VirtualFile& in_file) {
 }
 
 std::optional<VAddr> AppLoader_NSO::LoadModule(Kernel::KProcess& process, Core::System& system, const FileSys::VfsFile& nso_file, VAddr load_base, bool should_pass_arguments, bool load_into_process, std::optional<FileSys::PatchManager> pm, std::vector<Core::NCE::Patcher>* patches, s32 patch_index) {
+    std::fprintf(stderr, "[NSO_TRACE] LoadModule: file=%s size=%zu\n", nso_file.GetName().c_str(), nso_file.GetSize());
+    std::fflush(stderr);
     if (nso_file.GetSize() < sizeof(NSOHeader))
         return std::nullopt;
     NSOHeader nso_header{};
@@ -76,6 +79,11 @@ std::optional<VAddr> AppLoader_NSO::LoadModule(Kernel::KProcess& process, Core::
         return std::nullopt;
     if (nso_header.segments.empty())
         return std::nullopt;
+
+    std::fprintf(stderr, "[NSO_TRACE] Header OK, segments: compressed=[%u,%u,%u] sizes=[%u,%u,%u]\n",
+        (unsigned)nso_header.segments_compressed_size[0], (unsigned)nso_header.segments_compressed_size[1], (unsigned)nso_header.segments_compressed_size[2],
+        (unsigned)nso_header.segments[0].size, (unsigned)nso_header.segments[1].size, (unsigned)nso_header.segments[2].size);
+    std::fflush(stderr);
 
     // Allocate some space at the beginning if we are patching in PreText mode.
     const size_t module_start = [&]() -> size_t {
@@ -96,16 +104,24 @@ std::optional<VAddr> AppLoader_NSO::LoadModule(Kernel::KProcess& process, Core::
     // Build program image directly in codeset memory :)
     Kernel::CodeSet codeset;
     codeset.memory.resize(module_start + last_segment_it->location + last_segment_it->size);
+    std::fprintf(stderr, "[NSO_TRACE] codeset.memory.size=%zu module_start=%zu\n", codeset.memory.size(), module_start);
+    std::fflush(stderr);
     {
         std::vector<u8> compressed_data(*std::ranges::max_element(nso_header.segments_compressed_size));
         std::vector<u8> decompressed_size(std::ranges::max_element(nso_header.segments, [](auto const& a, auto const& b) {
             return a.size < b.size;
         })->size);
+        std::fprintf(stderr, "[NSO_TRACE] compressed_data.size=%zu decompressed_size.size=%zu\n", compressed_data.size(), decompressed_size.size());
+        std::fflush(stderr);
         for (std::size_t i = 0; i < nso_header.segments.size(); ++i) {
+            std::fprintf(stderr, "[NSO_TRACE] seg[%zu]: read %u bytes at offset %u\n", i, (unsigned)nso_header.segments_compressed_size[i], (unsigned)nso_header.segments[i].offset);
+            std::fflush(stderr);
             nso_file.Read(compressed_data.data(), nso_header.segments_compressed_size[i], nso_header.segments[i].offset);
             if (nso_header.IsSegmentCompressed(i)) {
                 int r = Common::Compression::DecompressDataLZ4(decompressed_size.data(), nso_header.segments[i].size, compressed_data.data(), nso_header.segments_compressed_size[i]);
                 ASSERT(r == int(nso_header.segments[i].size));
+                std::fprintf(stderr, "[NSO_TRACE] seg[%zu]: decompress OK (%d bytes)\n", i, r);
+                std::fflush(stderr);
                 std::memcpy(codeset.memory.data() + module_start + nso_header.segments[i].location, decompressed_size.data(), nso_header.segments[i].size);
             } else {
                 std::memcpy(codeset.memory.data() + module_start + nso_header.segments[i].location, compressed_data.data(), nso_header.segments[i].size);
@@ -137,6 +153,8 @@ std::optional<VAddr> AppLoader_NSO::LoadModule(Kernel::KProcess& process, Core::
 
     // Apply patches if necessary
     const auto name = nso_file.GetName();
+    std::fprintf(stderr, "[NSO_TRACE] name='%s', name.size()=%zu, checking patches...\n", name.c_str(), name.size());
+    std::fflush(stderr);
     if (pm && (pm->HasNSOPatch(nso_header.build_id, name) || Settings::values.dump_nso)) {
         std::span<u8> patchable_section(codeset.memory.data() + module_start, codeset.memory.size() - module_start);
         std::vector<u8> pi_header(sizeof(NSOHeader) + patchable_section.size());
@@ -146,7 +164,10 @@ std::optional<VAddr> AppLoader_NSO::LoadModule(Kernel::KProcess& process, Core::
 
         pi_header = pm->PatchNSO(pi_header, name);
 
-        std::copy(pi_header.begin() + sizeof(NSOHeader), pi_header.end(), patchable_section.data());
+        if (pi_header.size() > sizeof(NSOHeader)) {
+            const auto copy_size = std::min(pi_header.size() - sizeof(NSOHeader), patchable_section.size());
+            std::copy_n(pi_header.begin() + sizeof(NSOHeader), copy_size, patchable_section.data());
+        }
     }
 
 #ifdef HAS_NCE

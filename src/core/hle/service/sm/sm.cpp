@@ -42,6 +42,8 @@ ServiceManager::~ServiceManager() {
 }
 
 void ServiceManager::InvokeControlRequest(HLERequestContext& context) {
+    LOG_INFO(Service_SM, "InvokeControlRequest: command={}, controller handlers={}", 
+             context.GetCommand(), controller_interface->GetHandlerCount());
     controller_interface->InvokeRequest(context);
 }
 

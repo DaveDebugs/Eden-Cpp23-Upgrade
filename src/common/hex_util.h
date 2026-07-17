@@ -58,9 +58,9 @@ template <typename ContiguousContainer>
 
     for (const u8 c : data) {
         if (upper) {
-            out += std::format("{:02X}", c);
+            out += std::format("{:02X}", static_cast<unsigned int>(c));
         } else {
-            out += std::format("{:02x}", c);
+            out += std::format("{:02x}", static_cast<unsigned int>(c));
         }
     }
 

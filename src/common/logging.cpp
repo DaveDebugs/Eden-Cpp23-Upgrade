@@ -419,10 +419,19 @@ void SetColorConsoleBackendEnabled(bool enabled) {
 
 void FmtLogMessageImpl(Class log_class, Level log_level, const char* filename, unsigned int line_num, const char* function, std::string_view format, const std::format_args& args) {
     if (logging_instance && logging_instance->filter.CheckMessage(log_class, log_level)) {
+        // Format the message EAGERLY here, before any lambda capture.
+        // std::format_args stores pointers to the caller's arguments which may be
+        // temporaries. Capturing args in a lambda risks dangling references.
+        std::string message;
+        try {
+            message = std::vformat(format, args);
+        } catch (...) {
+            message = "<format error>";
+        }
         auto const flush = ::Settings::values.log_flush_line.GetValue();
-        logging_instance->ForEachBackend([=](Backend& backend) {
+        logging_instance->ForEachBackend([&](Backend& backend) {
             backend.Write(Entry{
-                .message = std::vformat(format, args),
+                .message = message,
                 .timestamp = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - logging_instance->time_origin),
                 .log_class = log_class,
                 .log_level = log_level,

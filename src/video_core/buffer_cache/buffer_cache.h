@@ -1237,7 +1237,7 @@ void BufferCache<P>::UpdateIndexBuffer() {
             inline_buffer_id = CreateBuffer(0, buffer_size);
         }
         if (slot_buffers[inline_buffer_id].SizeBytes() < buffer_size) [[unlikely]] {
-            slot_buffers.erase(inline_buffer_id);
+            DeleteBuffer(inline_buffer_id);
             inline_buffer_id = CreateBuffer(0, buffer_size);
         }
         channel_state->index_buffer = Binding{

@@ -387,15 +387,8 @@ u32 BufferCacheRuntime::GetStorageBufferAlignment() const {
 }
 
 void BufferCacheRuntime::TickFrame(Common::SlotVector<Buffer>& slot_buffers) noexcept {
-    for (auto it = slot_buffers.begin(); it != slot_buffers.end(); ) {
-        if (scheduler.IsFree(it->LastUsageTick())) {
-            const auto id = (*it).first;
-            ++it;
-            slot_buffers.erase(id);
-        } else {
-            ++it;
-        }
-    }
+    // Buffers are managed and deleted by the generic BufferCache (via lru_cache and delayed_destruction_ring).
+    // Erasing them directly from slot_buffers here leaves stale pointers in page_table and corrupts the LRU cache.
 }
 
 void BufferCacheRuntime::Finish() {
