@@ -42,6 +42,8 @@ void ConfigureDebug::SetConfiguration() {
     ui->log_filter_edit->setText(QString::fromStdString(Settings::values.log_filter.GetValue()));
     ui->flush_line->setChecked(Settings::values.log_flush_line.GetValue());
     ui->censor_username->setChecked(Settings::values.censor_username.GetValue());
+    ui->enable_micro_stutter_logging->setChecked(Settings::values.enable_micro_stutter_logging);
+    ui->enable_frame_profiler->setChecked(Settings::values.enable_frame_profiler);
     ui->reporting_services->setChecked(Settings::values.reporting_services.GetValue());
     ui->dump_audio_commands->setChecked(Settings::values.dump_audio_commands.GetValue());
     ui->quest_flag->setChecked(Settings::values.quest_flag.GetValue());
@@ -115,6 +117,8 @@ void ConfigureDebug::ApplyConfiguration() {
     Settings::values.log_filter = ui->log_filter_edit->text().toStdString();
     Settings::values.log_flush_line = ui->flush_line->isChecked();
     Settings::values.censor_username = ui->censor_username->isChecked();
+    Settings::values.enable_micro_stutter_logging = ui->enable_micro_stutter_logging->isChecked();
+    Settings::values.enable_frame_profiler = ui->enable_frame_profiler->isChecked();
     Settings::values.program_args = ui->homebrew_args_edit->text().toStdString();
     Settings::values.enable_fs_access_log = ui->fs_access_log->isChecked();
     Settings::values.reporting_services = ui->reporting_services->isChecked();

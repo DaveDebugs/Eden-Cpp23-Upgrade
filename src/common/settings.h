@@ -784,6 +784,8 @@ struct Values {
 
     // Debugging
     bool record_frame_times;
+    bool enable_micro_stutter_logging;
+    bool enable_frame_profiler;
     Setting<bool> use_gdbstub{linkage, false, "use_gdbstub", Category::Debugging};
     Setting<u16> gdbstub_port{linkage, 6543, "gdbstub_port", Category::Debugging};
     SwitchableSetting<std::string> program_args{linkage,

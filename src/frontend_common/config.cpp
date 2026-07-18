@@ -303,6 +303,10 @@ void Config::ReadDebuggingValues() {
     // Intentionally not using the QT default setting as this is intended to be changed in the ini
     Settings::values.record_frame_times =
         ReadBooleanSetting(std::string("record_frame_times"), std::make_optional(false));
+    Settings::values.enable_micro_stutter_logging =
+        ReadBooleanSetting(std::string("enable_micro_stutter_logging"), std::make_optional(false));
+    Settings::values.enable_frame_profiler =
+        ReadBooleanSetting(std::string("enable_frame_profiler"), std::make_optional(false));
 
     ReadCategory(Settings::Category::Debugging);
     ReadCategory(Settings::Category::DebuggingGraphics);
@@ -603,6 +607,8 @@ void Config::SaveDebuggingValues() {
 
     // Intentionally not using the QT default setting as this is intended to be changed in the ini
     WriteBooleanSetting(std::string("record_frame_times"), Settings::values.record_frame_times);
+    WriteBooleanSetting(std::string("enable_micro_stutter_logging"), Settings::values.enable_micro_stutter_logging);
+    WriteBooleanSetting(std::string("enable_frame_profiler"), Settings::values.enable_frame_profiler);
 
     WriteCategory(Settings::Category::Debugging);
     WriteCategory(Settings::Category::DebuggingGraphics);

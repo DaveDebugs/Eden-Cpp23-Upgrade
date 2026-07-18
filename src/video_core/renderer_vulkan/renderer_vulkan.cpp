@@ -415,7 +415,7 @@ void RendererVulkan::DrawImGui(Frame* frame) {
                 osd_max_frametime_spike = std::max(osd_max_frametime_spike, frametime_ms);
                 osd_frame_count++;
                 
-                if (frametime_ms > 80.0f) {
+                if (Settings::values.enable_micro_stutter_logging && frametime_ms > 80.0f) {
                     LOG_WARNING(Render_Vulkan, "Micro-stutter detected! Frametime: {:.2f} ms", frametime_ms);
                 }
 

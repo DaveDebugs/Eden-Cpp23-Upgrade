@@ -16,6 +16,7 @@
 #include "common/fs/file.h"
 #include "common/fs/fs.h"
 #include "common/fs/path_util.h"
+#include "common/logging/log.h"
 #include "common/settings.h"
 #include "core/perf_stats.h"
 #include "core/frame_profiler.h"
@@ -101,7 +102,9 @@ void PerfStats::EndSystemFrame() {
     // FPS and emulation speed will be approximated from frametime here;
     // the full stats are only available at GetAndResetStats intervals.
     const double instant_fps = frametime_ms > 0.0 ? 1000.0 / frametime_ms : 0.0;
-    FrameProfiler::Instance().EndFrame(frametime_ms, instant_fps, 0.0);
+    if (Settings::values.enable_frame_profiler) {
+        FrameProfiler::Instance().EndFrame(frametime_ms, instant_fps, 0.0);
+    }
 }
 
 void PerfStats::EndGameFrame() {
