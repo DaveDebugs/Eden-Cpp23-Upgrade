@@ -1408,6 +1408,8 @@ void MainWindow::RestoreUIState() {
     if (perf_overlay)
         perf_overlay->setVisible(ui->action_Show_Performance_Overlay->isChecked());
     Debugger::ToggleConsole();
+
+    ui->action_Unlock_60FPS->setChecked(Settings::values.custom_refresh_rate.GetValue() == 120);
 }
 
 void MainWindow::OnAppFocusStateChanged(Qt::ApplicationState state) {
@@ -1519,6 +1521,10 @@ void MainWindow::ConnectMenuEvents() {
     connect_menu(ui->action_Show_Filter_Bar, &MainWindow::OnToggleFilterBar);
     connect_menu(ui->action_Show_Status_Bar, &MainWindow::OnToggleStatusBar);
     connect_menu(ui->action_Show_Performance_Overlay, &MainWindow::OnTogglePerfOverlay);
+
+    connect(ui->action_Unlock_60FPS, &QAction::triggered, this, [](bool checked) {
+        Settings::values.custom_refresh_rate.SetValue(checked ? 120 : 60);
+    });
 
     connect_menu(ui->action_Reset_Window_Size_720, &MainWindow::ResetWindowSize720);
     connect_menu(ui->action_Reset_Window_Size_900, &MainWindow::ResetWindowSize900);
