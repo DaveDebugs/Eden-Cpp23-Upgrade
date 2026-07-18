@@ -45,6 +45,25 @@ With the new C++23 foundation in place, we launched a "Deep Dive" to track down 
 
 ---
 
+## Phase 3: Post-Modernization Stability & Crash Fixes
+Following the C++23 modernization, we resolved several critical compiler-specific and buffer-management runtime issues that caused game crashes and launching hangs.
+
+### 1. MSVC 19.51 `.rdata` Alignment Bug Workaround
+* **The Problem:** The MSVC 19.51 compiler emitted unaligned memory addresses for `constexpr` static structs, causing an access violation (`0xC0000005`) immediately at boot when loading Nintendo Switch NSO patches.
+* **The Fix:** Removed the `constexpr` qualifier from the `FunctionInfoTyped` constructor in `service.h` to force the compiler to generate properly-aligned structure initializers in memory.
+
+### 2. GPU Buffer Cache Memory Corruption
+* **The Problem:** When games issued large draw calls requiring an inline index buffer resize, the emulator would crash inside `LeastRecentlyUsedCache::Free` with an invalid ID (`SIZE_MAX`).
+* **The Fix:** 
+  * Replaced a raw `slot_buffers.erase()` call in `buffer_cache.h`'s `UpdateIndexBuffer` with `DeleteBuffer()` to ensure the stale buffer is fully unregistered from the internal page table.
+  * Empty-bodied the redundant, manual erasure loop in Vulkan's `BufferCacheRuntime::TickFrame` in `vk_buffer_cache.cpp` that was silently deleting active buffers and corrupting the LRU cache tracking state.
+
+### 3. Benchmark Frametime Calculation Fix
+* **The Problem:** In certain emulation states, `benchmark_results.json` would output `-nan` for the average frametime.
+* **The Fix:** Patched a division-by-zero risk in `perf_stats.cpp`'s `GetAndResetStats()` by safely handling states where `system_frames` is `0`.
+
+---
+
 ## Final Benchmark Results
 The transition from Original Eden (v0.2.1) to the **Final C++23 Deep Dive** build yielded generational improvements.
 
