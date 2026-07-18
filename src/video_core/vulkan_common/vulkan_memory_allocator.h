@@ -120,6 +120,9 @@ namespace Vulkan {
         /// Commits memory required by the buffer and binds it (for buffers created outside VMA).
         MemoryCommit Commit(const vk::Buffer &buffer, MemoryUsage usage);
 
+        /// Get total VRAM currently allocated in bytes
+        [[nodiscard]] u64 GetVRAMUsage() const;
+
     private:
         static bool IsAutoUsage(VmaMemoryUsage u) noexcept {
             switch (u) {

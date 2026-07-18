@@ -34,7 +34,7 @@ WindowAdaptPass::~WindowAdaptPass() = default;
 void WindowAdaptPass::Draw(const Device& device, RasterizerVulkan& rasterizer, Scheduler& scheduler, size_t image_index,
                            std::list<Layer>& layers,
                            std::span<const Tegra::FramebufferConfig> configs,
-                           const Layout::FramebufferLayout& layout, Frame* dst) {
+                           const Layout::FramebufferLayout& layout, Frame* dst, std::function<void(vk::CommandBuffer)> draw_overlay_cb) {
 
     const VkFramebuffer host_framebuffer{*dst->framebuffer};
     const VkRenderPass renderpass{*render_pass};
@@ -103,6 +103,7 @@ void WindowAdaptPass::Draw(const Device& device, RasterizerVulkan& rasterizer, S
             cmdbuf.Draw(4, 1, 0, 0);
         }
 
+        if (draw_overlay_cb) draw_overlay_cb(cmdbuf);
         cmdbuf.EndRenderPass();
     });
 }

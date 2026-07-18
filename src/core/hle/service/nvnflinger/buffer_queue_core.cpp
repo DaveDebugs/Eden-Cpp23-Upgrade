@@ -89,7 +89,7 @@ s32 BufferQueueCore::GetMaxBufferCountLocked(bool async) const {
 
     for (s32 slot = max_buffer_count; slot < BufferQueueDefs::NUM_BUFFER_SLOTS; ++slot) {
         const auto state = slots[slot].buffer_state;
-        if (state == BufferState::Queued || state == BufferState::Dequeued) {
+        if (state == BufferState::Queued || state == BufferState::Dequeued || state == BufferState::Acquired) {
             max_buffer_count = slot + 1;
         }
     }

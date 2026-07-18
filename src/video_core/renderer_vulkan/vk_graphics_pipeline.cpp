@@ -28,6 +28,7 @@
 #include "video_core/vulkan_common/vulkan_device.h"
 #include "video_core/gpu_logging/gpu_logging.h"
 #include "common/settings.h"
+#include "video_core/renderer_vulkan/vk_shader_util.h"
 
 #if defined(_MSC_VER) && defined(NDEBUG)
 #define LAMBDA_FORCEINLINE [[msvc::forceinline]]
@@ -149,10 +150,10 @@ size_t NumAttachments(const FixedPipelineState& state) {
 }
 
 template <typename Spec>
-bool Passes(const std::array<vk::ShaderModule, NUM_STAGES>& modules,
+bool Passes(const std::array<bool, NUM_STAGES>& stages_enabled,
             const std::array<Shader::Info, NUM_STAGES>& stage_infos) {
     for (size_t stage = 0; stage < NUM_STAGES; ++stage) {
-        if (!Spec::enabled_stages[stage] && modules[stage]) {
+        if (!Spec::enabled_stages[stage] && stages_enabled[stage]) {
             return false;
         }
         const auto& info{stage_infos[stage]};
@@ -183,7 +184,7 @@ bool Passes(const std::array<vk::ShaderModule, NUM_STAGES>& modules,
 using ConfigureFuncPtr = bool (*)(GraphicsPipeline*, bool);
 
 template <typename Spec, typename... Specs>
-ConfigureFuncPtr FindSpec(const std::array<vk::ShaderModule, NUM_STAGES>& modules,
+ConfigureFuncPtr FindSpec(const std::array<bool, NUM_STAGES>& modules,
                           const std::array<Shader::Info, NUM_STAGES>& stage_infos) {
     if constexpr (sizeof...(Specs) > 0) {
         if (!Passes<Spec>(modules, stage_infos)) {
@@ -233,7 +234,7 @@ struct DefaultSpec {
     static constexpr bool has_images = true;
 };
 
-ConfigureFuncPtr ConfigureFunc(const std::array<vk::ShaderModule, NUM_STAGES>& modules,
+ConfigureFuncPtr ConfigureFunc(const std::array<bool, NUM_STAGES>& modules,
                                const std::array<Shader::Info, NUM_STAGES>& infos) {
     return FindSpec<SimpleVertexSpec, SimpleVertexFragmentSpec, SimpleStorageSpec, SimpleImageSpec,
                     DefaultSpec>(modules, infos);
@@ -247,11 +248,11 @@ GraphicsPipeline::GraphicsPipeline(
     const Device& device_, DescriptorPool& descriptor_pool,
     GuestDescriptorQueue& guest_descriptor_queue_, Common::ThreadWorker* worker_thread,
     PipelineStatistics* pipeline_statistics, RenderPassCache& render_pass_cache,
-    const GraphicsPipelineCacheKey& key_, std::array<vk::ShaderModule, NUM_STAGES> stages,
+    const GraphicsPipelineCacheKey& key_, std::array<std::vector<u32>, NUM_STAGES> stages_spirv,
     const std::array<const Shader::Info*, NUM_STAGES>& infos)
     : key{key_}, device{device_}, texture_cache{texture_cache_}, buffer_cache{buffer_cache_},
       pipeline_cache(pipeline_cache_), scheduler{scheduler_},
-      guest_descriptor_queue{guest_descriptor_queue_}, spv_modules{std::move(stages)} {
+      guest_descriptor_queue{guest_descriptor_queue_} {
     if (shader_notify) {
         shader_notify->MarkShaderBuilding();
     }
@@ -270,8 +271,23 @@ GraphicsPipeline::GraphicsPipeline(
         num_image_elements += Shader::NumDescriptors(info->image_descriptors);
         num_descriptor_entries += NumDescriptorEntries(*info);
     }
+    std::array<bool, NUM_STAGES> stages_enabled{};
+    for (size_t stage = 0; stage < NUM_STAGES; ++stage) {
+        stages_enabled[stage] = !stages_spirv[stage].empty();
+    }
+
     fragment_has_color0_output = stage_infos[NUM_STAGES - 1].stores_frag_color[0];
-    auto func{[this, shader_notify, &render_pass_cache, &descriptor_pool, pipeline_statistics] {
+    auto func{[this, shader_notify, &render_pass_cache, &descriptor_pool, pipeline_statistics, stages_spirv = std::move(stages_spirv)] {
+        for (size_t stage = 0; stage < NUM_STAGES; ++stage) {
+            if (!stages_spirv[stage].empty()) {
+                spv_modules[stage] = BuildShader(device, stages_spirv[stage]);
+                if (device.HasDebuggingToolAttached()) {
+                    const std::string name{std::format("Shader {:016x}", key.unique_hashes[stage == 0 ? 0 : stage + 1])};
+                    spv_modules[stage].SetObjectNameEXT(name.c_str());
+                }
+            }
+        }
+
         DescriptorLayoutBuilder builder{MakeBuilder(device, stage_infos)};
         uses_push_descriptor = builder.CanUsePushDescriptor();
         descriptor_set_layout = builder.CreateDescriptorSetLayout(uses_push_descriptor);
@@ -304,7 +320,7 @@ GraphicsPipeline::GraphicsPipeline(
     } else {
         func();
     }
-    configure_func = ConfigureFunc(spv_modules, stage_infos);
+    configure_func = ConfigureFunc(stages_enabled, stage_infos);
 }
 
 void GraphicsPipeline::AddTransition(GraphicsPipeline* transition) {
@@ -520,20 +536,18 @@ bool GraphicsPipeline::ConfigureImpl(bool is_indexed) {
     texture_cache.UpdateRenderTargets(false);
     texture_cache.CheckFeedbackLoop(std::span<const VideoCommon::ImageViewInOut>{views.data(),
                                                                                  views.size()});
-    ConfigureDraw(rescaling, render_area);
+    if (!ConfigureDraw(rescaling, render_area)) {
+        return false;
+    }
 
     return true;
 }
 
-void GraphicsPipeline::ConfigureDraw(const RescalingPushConstant& rescaling,
+bool GraphicsPipeline::ConfigureDraw(const RescalingPushConstant& rescaling,
                                      const RenderAreaPushConstant& render_area) {
     scheduler.RequestRenderpass(texture_cache.GetFramebuffer());
     if (!is_built.load(std::memory_order::relaxed)) {
-        // Wait for the pipeline to be built
-        scheduler.Record([this](vk::CommandBuffer) {
-            std::unique_lock lock{build_mutex};
-            build_condvar.wait(lock, [this] { return is_built.load(std::memory_order::relaxed); });
-        });
+        return false;
     }
     const bool is_rescaling{texture_cache.IsRescaling()};
     const bool update_rescaling{scheduler.UpdateRescaling(is_rescaling)};
@@ -583,6 +597,8 @@ void GraphicsPipeline::ConfigureDraw(const RescalingPushConstant& rescaling,
                                       descriptor_set, nullptr);
         }
     });
+
+    return true;
 }
 
 void GraphicsPipeline::MakePipeline(VkRenderPass render_pass) {

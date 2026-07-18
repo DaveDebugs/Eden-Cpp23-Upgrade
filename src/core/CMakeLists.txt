@@ -1164,6 +1164,8 @@ add_library(core STATIC
     memory/dmnt_cheat_vm.h
     perf_stats.cpp
     perf_stats.h
+    frame_profiler.cpp
+    frame_profiler.h
     reporter.cpp
     reporter.h
     tools/freezer.cpp

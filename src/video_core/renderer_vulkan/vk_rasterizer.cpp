@@ -17,6 +17,7 @@
 #include "common/logging.h"
 #include "common/scope_exit.h"
 #include "common/settings.h"
+#include "core/frame_profiler.h"
 #include "video_core/buffer_cache/buffer_cache.h"
 #include "video_core/gpu_logging/gpu_logging.h"
 #include "video_core/control/channel_state.h"
@@ -256,6 +257,7 @@ void RasterizerVulkan::PrepareDraw(bool is_indexed, Func&& draw_func) {
 }
 
 void RasterizerVulkan::Draw(bool is_indexed, u32 instance_count) {
+    Core::FrameProfiler::Instance().RecordDrawCall();
     PrepareDraw(is_indexed, [this, is_indexed, instance_count]() {
         const auto& draw_state = maxwell3d->draw_manager.draw_state;
         const u32 num_instances{instance_count};
@@ -289,6 +291,7 @@ void RasterizerVulkan::Draw(bool is_indexed, u32 instance_count) {
 }
 
 void RasterizerVulkan::DrawIndirect() {
+    Core::FrameProfiler::Instance().RecordDrawCall();
     const auto& params = maxwell3d->draw_manager.indirect_state;
     buffer_cache.SetDrawIndirect(&params);
     PrepareDraw(params.is_indexed, [this, &params]() {
@@ -346,6 +349,7 @@ void RasterizerVulkan::DrawIndirect() {
 }
 
 void RasterizerVulkan::DrawTexture() {
+    Core::FrameProfiler::Instance().RecordDrawCall();
 
     SCOPE_EXIT {
         gpu.TickWork();
@@ -557,7 +561,9 @@ void RasterizerVulkan::DispatchCompute() {
         return;
     }
     std::scoped_lock lock{texture_cache.mutex, buffer_cache.mutex};
-    pipeline->Configure(*kepler_compute, *gpu_memory, scheduler, buffer_cache, texture_cache);
+    if (!pipeline->Configure(*kepler_compute, *gpu_memory, scheduler, buffer_cache, texture_cache)) {
+        return;
+    }
 
     const auto& qmd{kepler_compute->launch_description};
     auto indirect_address = kepler_compute->GetIndirectComputeAddress();

@@ -1,3 +1,4 @@
+#include <functional>
 // SPDX-FileCopyrightText: Copyright 2026 Eden Emulator Project
 // SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -58,11 +59,13 @@ public:
     void DrawToFrame(const Device& device, RasterizerVulkan& rasterizer, Frame* frame,
                      std::span<const Tegra::FramebufferConfig> framebuffers,
                      const Layout::FramebufferLayout& layout, size_t current_swapchain_image_count,
-                     VkFormat current_swapchain_view_format);
+                     VkFormat current_swapchain_view_format, std::function<void(vk::CommandBuffer)> draw_overlay_cb = {});
 
     [[nodiscard]] vk::Framebuffer CreateFramebuffer(const Device& device, const Layout::FramebufferLayout& layout,
                                                     VkImageView image_view,
                                                     VkFormat current_view_format);
+
+    [[nodiscard]] VkRenderPass GetRenderPass() const;
 
 private:
     void WaitIdle(const Device& device);

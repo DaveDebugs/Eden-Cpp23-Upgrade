@@ -18,6 +18,7 @@
 #include "common/fs/path_util.h"
 #include "common/settings.h"
 #include "core/perf_stats.h"
+#include "core/frame_profiler.h"
 #include <format>
 
 using namespace std::chrono_literals;
@@ -31,9 +32,19 @@ constexpr std::size_t IgnoreFrames = 5;
 
 namespace Core {
 
-PerfStats::PerfStats(u64 title_id_) : title_id(title_id_) {}
+PerfStats::PerfStats(u64 title_id_) : title_id(title_id_) {
+    if (title_id_ != 0) {
+        FrameProfiler::Instance().SetTitleId(title_id_);
+        FrameProfiler::Instance().Start();
+    }
+}
 
 PerfStats::~PerfStats() {
+    // Stop the frame profiler (writes CSV)
+    if (title_id != 0) {
+        FrameProfiler::Instance().Stop();
+    }
+
     if (title_id == 0) {
         return;
     }
@@ -61,7 +72,7 @@ PerfStats::~PerfStats() {
             "}}\n",
             title_id, avg_sys_fps, avg_game_fps, avg_frametime * 1000.0, avg_speed * 100.0, cumulative_stats.samples
         );
-        file.WriteString(json);
+        void(file.WriteString(json));
     }
 }
 
@@ -76,15 +87,21 @@ void PerfStats::EndSystemFrame() {
 
     auto frame_end = Clock::now();
     const auto frame_time = frame_end - frame_begin;
+    const double frametime_ms = std::chrono::duration<double, std::milli>(frame_time).count();
     if (current_index < perf_history.size()) {
-        perf_history[current_index++] =
-            std::chrono::duration<double, std::milli>(frame_time).count();
+        perf_history[current_index++] = frametime_ms;
     }
     accumulated_frametime += frame_time;
     system_frames += 1;
 
     previous_frame_length = frame_end - previous_frame_end;
     previous_frame_end = frame_end;
+
+    // Feed per-frame data to the profiler.
+    // FPS and emulation speed will be approximated from frametime here;
+    // the full stats are only available at GetAndResetStats intervals.
+    const double instant_fps = frametime_ms > 0.0 ? 1000.0 / frametime_ms : 0.0;
+    FrameProfiler::Instance().EndFrame(frametime_ms, instant_fps, 0.0);
 }
 
 void PerfStats::EndGameFrame() {

@@ -370,6 +370,10 @@ namespace Vulkan {
         return MemoryCommit(allocator, a, info);
     }
 
-
+    u64 MemoryAllocator::GetVRAMUsage() const {
+        VmaTotalStatistics stats;
+        vmaCalculateStatistics(allocator, &stats);
+        return stats.total.statistics.allocationBytes;
+    }
 
 } // namespace Vulkan

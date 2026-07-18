@@ -774,7 +774,7 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
         }
     }
     std::array<const Shader::Info*, Maxwell::MaxShaderStage> infos{};
-    std::array<vk::ShaderModule, Maxwell::MaxShaderStage> modules;
+    std::array<std::vector<u32>, Maxwell::MaxShaderStage> stages_spirv;
 
     const Shader::IR::Program* previous_stage{};
     Shader::Backend::Bindings binding;
@@ -793,9 +793,8 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
 
         const auto runtime_info{MakeRuntimeInfo(programs, key, program, previous_stage, device)};
         ConvertLegacyToGeneric(program, runtime_info);
-        const std::vector<u32> code{EmitSPIRV(profile, runtime_info, program, binding)};
+        std::vector<u32> code{EmitSPIRV(profile, runtime_info, program, binding)};
         device.SaveShader(code);
-        modules[stage_index] = BuildShader(device, code);
 
         // Text log + .spv dump. Text log is gated by gpu_log_level != Off; .spv dump
         // is independent and gated only by gpu_log_shader_dumps.
@@ -814,18 +813,15 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
                                               std::span<const u32>(code.data(), code.size()));
             }
         }
-
-        if (device.HasDebuggingToolAttached()) {
-            const std::string name{std::format("Shader {:016x}", key.unique_hashes[index])};
-            modules[stage_index].SetObjectNameEXT(name.c_str());
-        }
+        
+        stages_spirv[stage_index] = std::move(code);
         previous_stage = &program;
     }
     Common::ThreadWorker* const thread_worker{build_in_parallel ? &workers : nullptr};
     return std::make_unique<GraphicsPipeline>(
         scheduler, buffer_cache, texture_cache, vulkan_pipeline_cache, &shader_notify, device,
         descriptor_pool, guest_descriptor_queue, thread_worker, statistics, render_pass_cache, key,
-        std::move(modules), infos);
+        std::move(stages_spirv), infos);
 
 } catch (const Shader::Exception& exception) {
     auto hash = key.Hash();

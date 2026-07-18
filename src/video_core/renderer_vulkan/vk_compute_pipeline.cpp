@@ -125,7 +125,7 @@ ComputePipeline::ComputePipeline(const Device& device_, Scheduler& scheduler, vk
     }
 }
 
-void ComputePipeline::Configure(Tegra::Engines::KeplerCompute& kepler_compute,
+bool ComputePipeline::Configure(Tegra::Engines::KeplerCompute& kepler_compute,
                                 Tegra::MemoryManager& gpu_memory, Scheduler& scheduler,
                                 BufferCache& buffer_cache, TextureCache& texture_cache) {
     guest_descriptor_queue.Acquire(scheduler, num_descriptor_entries);
@@ -236,11 +236,7 @@ void ComputePipeline::Configure(Tegra::Engines::KeplerCompute& kepler_compute,
                          views_it);
 
     if (!is_built.load(std::memory_order::relaxed)) {
-        // Wait for the pipeline to be built
-        scheduler.Record([this](vk::CommandBuffer) {
-            std::unique_lock lock{build_mutex};
-            build_condvar.wait(lock, [this] { return is_built.load(std::memory_order::relaxed); });
-        });
+        return false;
     }
 
     // Log compute pipeline binding
@@ -276,6 +272,8 @@ void ComputePipeline::Configure(Tegra::Engines::KeplerCompute& kepler_compute,
                                       descriptor_set, nullptr);
         }
     });
+
+    return true;
 }
 
 } // namespace Vulkan

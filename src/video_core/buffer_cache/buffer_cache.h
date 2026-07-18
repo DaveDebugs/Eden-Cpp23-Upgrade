@@ -11,6 +11,7 @@
 #include <numeric>
 
 #include "common/range_sets.inc"
+#include "core/frame_profiler.h"
 #include "video_core/buffer_cache/buffer_cache_base.h"
 #include "video_core/guest_memory.h"
 #include "video_core/host1x/gpu_device_memory_manager.h"
@@ -1571,6 +1572,7 @@ BufferId BufferCache<P>::CreateBuffer(DAddr device_addr, u32 wanted_size) {
     }
     Register(new_buffer_id);
     TouchBuffer(new_buffer, new_buffer_id);
+    Core::FrameProfiler::Instance().RecordBufferCreate();
     return new_buffer_id;
 }
 
@@ -1816,6 +1818,7 @@ void BufferCache<P>::DownloadBufferMemory(Buffer& buffer, DAddr device_addr, u64
 
 template <class P>
 void BufferCache<P>::DeleteBuffer(BufferId buffer_id, bool do_not_mark) {
+    Core::FrameProfiler::Instance().RecordBufferDelete();
     bool dirty_index{false};
     boost::container::small_vector<u64, NUM_VERTEX_BUFFERS> dirty_vertex_buffers;
     const auto scalar_replace = [buffer_id](Binding& binding) {

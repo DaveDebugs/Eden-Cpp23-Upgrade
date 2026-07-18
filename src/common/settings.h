@@ -581,7 +581,7 @@ struct Values {
                                                        true,
                                                        true};
 
-    SwitchableSetting<bool> use_asynchronous_shaders{linkage, false, "use_asynchronous_shaders",
+    SwitchableSetting<bool> use_asynchronous_shaders{linkage, true, "use_asynchronous_shaders",
                                                      Category::RendererHacks};
 
     SwitchableSetting<GpuUnswizzleSize> gpu_unswizzle_texture_size{linkage,

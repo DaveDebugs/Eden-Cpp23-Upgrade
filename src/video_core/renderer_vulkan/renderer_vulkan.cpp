@@ -24,6 +24,8 @@
 #include "video_core/gpu.h"
 #include "video_core/present.h"
 #include "video_core/renderer_vulkan/present/util.h"
+#include <imgui.h>
+#include <backends/imgui_impl_vulkan.h>
 #include "video_core/renderer_vulkan/renderer_vulkan.h"
 #include "video_core/renderer_vulkan/vk_blit_screen.h"
 #include "video_core/renderer_vulkan/vk_rasterizer.h"
@@ -165,6 +167,32 @@ try
                   PresentFiltersForAppletCapture)
     , rasterizer(render_window, gpu, device_memory, device, memory_allocator, state_tracker, scheduler) {
 
+    
+    // Initialize ImGui Descriptor Pool
+    const VkDescriptorPoolSize pool_sizes[] = {
+        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
+        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
+        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
+        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
+        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
+        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
+        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
+        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
+        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
+        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
+        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}
+    };
+    imgui_descriptor_pool = device.GetLogical().CreateDescriptorPool(VkDescriptorPoolCreateInfo{
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
+        .maxSets = 1000 * IM_ARRAYSIZE(pool_sizes),
+        .poolSizeCount = static_cast<u32>(IM_ARRAYSIZE(pool_sizes)),
+        .pPoolSizes = pool_sizes,
+    });
+    
+    InitImGui();
+
     if (Settings::values.renderer_force_max_clock.GetValue() && device.ShouldBoostClocks()) {
         turbo_mode.emplace(instance, dld);
         scheduler.RegisterOnSubmit([this] { turbo_mode->QueueSubmitted(); });
@@ -179,6 +207,7 @@ try
 RendererVulkan::~RendererVulkan() {
     scheduler.RegisterOnSubmit([] {});
     void(device.GetLogical().WaitIdle());
+    if (ImGui::GetCurrentContext()) { ImGui_ImplVulkan_Shutdown(); ImGui::DestroyContext(); }
 }
 
 void RendererVulkan::Composite(std::span<const Tegra::FramebufferConfig> framebuffers) {
@@ -196,9 +225,19 @@ void RendererVulkan::Composite(std::span<const Tegra::FramebufferConfig> framebu
     Frame* frame = present_manager.GetRenderFrame();
 
     scheduler.RequestOutsideRenderPassOperationContext();
+    DrawImGui(frame);
+
+    auto draw_imgui_cb = [&](vk::CommandBuffer cmdbuf) {
+        if (!ImGui::GetCurrentContext()) return;
+        ImDrawData* draw_data = ImGui::GetDrawData();
+        if (draw_data) {
+            ImGui_ImplVulkan_RenderDrawData(draw_data, *cmdbuf);
+        }
+    };
+
     blit_swapchain.DrawToFrame(device, rasterizer, frame, framebuffers,
                                render_window.GetFramebufferLayout(), swapchain.GetImageCount(),
-                               swapchain.GetImageViewFormat());
+                               swapchain.GetImageViewFormat(), draw_imgui_cb);
     scheduler.Flush(*frame->render_ready);
 
     present_manager.Present(frame);
@@ -310,6 +349,108 @@ void RendererVulkan::RenderAppletCaptureLayer(
     scheduler.RequestOutsideRenderPassOperationContext();
     blit_applet.DrawToFrame(device, rasterizer, &applet_frame, framebuffers, VideoCore::Capture::Layout, 1,
                             CaptureFormat);
+}
+
+void RendererVulkan::InitImGui() {
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    ImGui::StyleColorsDark();
+
+    ImGui_ImplVulkan_LoadFunctions([](const char* function_name, void* user_data) {
+        auto* inst = static_cast<vk::Instance*>(user_data);
+        return inst->Dispatch().vkGetInstanceProcAddr(**inst, function_name);
+    }, &instance);
+    
+    // Note: ImGui_ImplVulkan_Init is deferred until DrawImGui because
+    // the blit_swapchain render pass might not be ready yet.
+}
+
+void RendererVulkan::DrawImGui(Frame* frame) {
+    if (!ImGui::GetCurrentContext()) return;
+    
+    ImGuiIO& io = ImGui::GetIO();
+    
+    if (!io.BackendRendererUserData) {
+        VkRenderPass render_pass = blit_swapchain.GetRenderPass();
+        if (render_pass == VK_NULL_HANDLE) {
+            return;
+        }
+
+        ImGui_ImplVulkan_InitInfo init_info = {};
+        init_info.Instance = *instance;
+        init_info.PhysicalDevice = device.GetPhysical();
+        init_info.Device = *device.GetLogical();
+        init_info.QueueFamily = device.GetGraphicsFamily();
+        init_info.Queue = *device.GetGraphicsQueue();
+        init_info.PipelineCache = VK_NULL_HANDLE;
+        init_info.DescriptorPool = *imgui_descriptor_pool;
+        init_info.Subpass = 0;
+        init_info.MinImageCount = static_cast<uint32_t>(swapchain.GetImageCount());
+        init_info.ImageCount = static_cast<uint32_t>(swapchain.GetImageCount());
+        init_info.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+        init_info.Allocator = nullptr;
+        init_info.CheckVkResultFn = nullptr;
+        
+        ImGui_ImplVulkan_Init(&init_info, render_pass);
+    }
+    
+    auto layout = render_window.GetFramebufferLayout();
+    io.DisplaySize = ImVec2((float)layout.screen.GetWidth(), (float)layout.screen.GetHeight());
+    io.DeltaTime = 1.0f / 60.0f; // Mock delta time
+
+    ImGui_ImplVulkan_NewFrame();
+    ImGui::NewFrame();
+
+    // Draw OSD
+    ImGui::SetNextWindowPos(ImVec2(10.0f, 10.0f), ImGuiCond_Always);
+    ImGui::SetNextWindowBgAlpha(0.5f);
+    if (ImGui::Begin("OSD", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoMove)) {
+        
+        auto now = std::chrono::high_resolution_clock::now();
+        if (osd_last_frame_time.time_since_epoch().count() != 0) {
+            float dt = std::chrono::duration<float>(now - osd_last_frame_time).count();
+            if (dt > 0.0f) {
+                float frametime_ms = dt * 1000.0f;
+                osd_max_frametime_spike = std::max(osd_max_frametime_spike, frametime_ms);
+                osd_frame_count++;
+                
+                if (frametime_ms > 80.0f) {
+                    LOG_WARNING(Render_Vulkan, "Micro-stutter detected! Frametime: {:.2f} ms", frametime_ms);
+                }
+
+                float elapsed_since_update = std::chrono::duration<float>(now - osd_last_update_time).count();
+                if (elapsed_since_update >= 0.5f) {
+                    osd_current_fps = osd_frame_count / elapsed_since_update;
+                    osd_current_frametime = frametime_ms;
+                    osd_last_update_time = now;
+                    osd_frame_count = 0;
+                    // Keep max spike from recent period, but let's just decay it or reset it?
+                    // We'll reset it every 0.5s so we see recent spikes.
+                    // Actually, to see the spikes, let's keep it until the next update.
+                    // Wait, we can't see a spike if it resets immediately.
+                    // Let's just track it, but maybe we shouldn't reset it here or we won't see it if it's too fast.
+                    // Instead, let's just show the current max spike and NOT reset it yet, or reset it every 2 seconds.
+                }
+            }
+        } else {
+            osd_last_update_time = now;
+        }
+        osd_last_frame_time = now;
+
+        ImGui::Text("Eden Performance OSD");
+        ImGui::Separator();
+        ImGui::Text("FPS: %.1f", osd_current_fps);
+        ImGui::Text("Frametime: %.2f ms (Spike: %.2f ms)", osd_current_frametime, osd_max_frametime_spike);
+        
+        // VRAM Usage
+        u64 vram_usage = memory_allocator.GetVRAMUsage();
+        double vram_mb = (double)vram_usage / (1024.0 * 1024.0);
+        ImGui::Text("VRAM Usage: %.2f MB", vram_mb);
+    }
+    ImGui::End();
+
+    ImGui::Render();
 }
 
 } // namespace Vulkan

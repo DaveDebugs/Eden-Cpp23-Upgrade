@@ -60,6 +60,8 @@ public:
     void InitializePlatformSpecific();
 
 private:
+    void InitImGui();
+    void DrawImGui(Frame* frame);
     void InterpolateFrames(Frame* prev_frame, Frame* curr_frame);
     Frame* previous_frame = nullptr;  // Store the previous frame for interpolation
     VkCommandBuffer BeginSingleTimeCommands();
@@ -98,6 +100,15 @@ private:
     std::optional<TurboMode> turbo_mode;
 
     Frame applet_frame;
+
+    vk::DescriptorPool imgui_descriptor_pool;
+    
+    std::chrono::high_resolution_clock::time_point osd_last_frame_time{};
+    std::chrono::high_resolution_clock::time_point osd_last_update_time{};
+    float osd_current_fps = 0.0f;
+    float osd_current_frametime = 0.0f;
+    float osd_max_frametime_spike = 0.0f;
+    int osd_frame_count = 0;
 };
 
 } // namespace Vulkan

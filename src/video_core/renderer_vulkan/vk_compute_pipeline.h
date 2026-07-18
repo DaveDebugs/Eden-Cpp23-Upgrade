@@ -45,8 +45,9 @@ public:
     ComputePipeline& operator=(const ComputePipeline&) = delete;
     ComputePipeline(const ComputePipeline&) = delete;
 
-    void Configure(Tegra::Engines::KeplerCompute& kepler_compute, Tegra::MemoryManager& gpu_memory,
-                   Scheduler& scheduler, BufferCache& buffer_cache, TextureCache& texture_cache);
+    bool Configure(Tegra::Engines::KeplerCompute& kepler_compute,
+                   Tegra::MemoryManager& gpu_memory, Scheduler& scheduler,
+                   BufferCache& buffer_cache, TextureCache& texture_cache);
 
 private:
     const Device& device;

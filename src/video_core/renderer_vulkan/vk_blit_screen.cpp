@@ -89,7 +89,7 @@ void BlitScreen::DrawToFrame(const Device& device, RasterizerVulkan& rasterizer,
                              std::span<const Tegra::FramebufferConfig> framebuffers,
                              const Layout::FramebufferLayout& layout,
                              size_t current_swapchain_image_count,
-                             VkFormat current_swapchain_view_format) {
+                             VkFormat current_swapchain_view_format, std::function<void(vk::CommandBuffer)> draw_overlay_cb) {
     bool resource_update_required = false;
     bool presentation_recreate_required = false;
 
@@ -134,7 +134,7 @@ void BlitScreen::DrawToFrame(const Device& device, RasterizerVulkan& rasterizer,
         }
     }
 
-    window_adapt->Draw(device, rasterizer, scheduler, image_index, layers, framebuffers, layout, frame);
+    window_adapt->Draw(device, rasterizer, scheduler, image_index, layers, framebuffers, layout, frame, draw_overlay_cb);
 
     if (++image_index >= image_count) {
         image_index = 0;
@@ -159,6 +159,10 @@ vk::Framebuffer BlitScreen::CreateFramebuffer(const Device& device, const Layout
     };
 
     return CreateFramebuffer(device, image_view, extent, window_adapt->GetRenderPass());
+}
+
+VkRenderPass BlitScreen::GetRenderPass() const {
+    return window_adapt ? window_adapt->GetRenderPass() : VK_NULL_HANDLE;
 }
 
 vk::Framebuffer BlitScreen::CreateFramebuffer(const Device& device, const VkImageView& image_view, VkExtent2D extent,

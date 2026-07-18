@@ -835,6 +835,8 @@ public:
         return dld->vkQueuePresentKHR(queue, &present_info);
     }
 
+    VkQueue operator*() const noexcept { return queue; }
+
 private:
     VkQueue queue = nullptr;
     const DeviceDispatch* dld = nullptr;

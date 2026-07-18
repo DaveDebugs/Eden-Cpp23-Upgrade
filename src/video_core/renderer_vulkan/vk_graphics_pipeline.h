@@ -78,7 +78,7 @@ public:
         const Device& device, DescriptorPool& descriptor_pool,
         GuestDescriptorQueue& guest_descriptor_queue, Common::ThreadWorker* worker_thread,
         PipelineStatistics* pipeline_statistics, RenderPassCache& render_pass_cache,
-        const GraphicsPipelineCacheKey& key, std::array<vk::ShaderModule, NUM_STAGES> stages,
+        const GraphicsPipelineCacheKey& key, std::array<std::vector<u32>, NUM_STAGES> stages_spirv,
         const std::array<const Shader::Info*, NUM_STAGES>& infos);
 
     bool HasDynamicVertexInput() const noexcept { return key.state.dynamic_vertex_input; }
@@ -132,7 +132,7 @@ private:
     template <typename Spec>
     bool ConfigureImpl(bool is_indexed);
 
-    void ConfigureDraw(const RescalingPushConstant& rescaling,
+    bool ConfigureDraw(const RescalingPushConstant& rescaling,
                        const RenderAreaPushConstant& render_are);
 
     void MakePipeline(VkRenderPass render_pass);
