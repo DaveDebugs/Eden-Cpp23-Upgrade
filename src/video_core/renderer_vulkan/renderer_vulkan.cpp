@@ -403,9 +403,10 @@ void RendererVulkan::DrawImGui(Frame* frame) {
     ImGui::NewFrame();
 
     // Draw OSD
-    ImGui::SetNextWindowPos(ImVec2(10.0f, 10.0f), ImGuiCond_Always);
-    ImGui::SetNextWindowBgAlpha(0.5f);
-    if (ImGui::Begin("OSD", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoMove)) {
+    if (Settings::values.enable_frame_profiler) {
+        ImGui::SetNextWindowPos(ImVec2(10.0f, 10.0f), ImGuiCond_Always);
+        ImGui::SetNextWindowBgAlpha(0.5f);
+        if (ImGui::Begin("OSD", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoMove)) {
         
         auto now = std::chrono::high_resolution_clock::now();
         if (osd_last_frame_time.time_since_epoch().count() != 0) {
@@ -447,8 +448,9 @@ void RendererVulkan::DrawImGui(Frame* frame) {
         u64 vram_usage = memory_allocator.GetVRAMUsage();
         double vram_mb = (double)vram_usage / (1024.0 * 1024.0);
         ImGui::Text("VRAM Usage: %.2f MB", vram_mb);
+        }
+        ImGui::End();
     }
-    ImGui::End();
 
     ImGui::Render();
 }

@@ -80,6 +80,7 @@ add_library(
     math_util.h
     memory_detect.cpp
     memory_detect.h
+    msvc_stl_shims.cpp
     multi_level_page_table.cpp
     multi_level_page_table.h
     overflow.h

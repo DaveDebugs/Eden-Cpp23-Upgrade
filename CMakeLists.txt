@@ -183,6 +183,7 @@ if(MSVC)
         set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
         set(libflag MD)
     endif()
+    
 
     # Force all projects (including external dependencies) to use the same runtime
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /${libflag}")

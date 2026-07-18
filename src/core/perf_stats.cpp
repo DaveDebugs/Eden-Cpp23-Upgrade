@@ -16,7 +16,6 @@
 #include "common/fs/file.h"
 #include "common/fs/fs.h"
 #include "common/fs/path_util.h"
-#include "common/logging/log.h"
 #include "common/settings.h"
 #include "core/perf_stats.h"
 #include "core/frame_profiler.h"
