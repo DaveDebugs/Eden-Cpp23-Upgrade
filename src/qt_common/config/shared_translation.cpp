@@ -83,9 +83,9 @@ std::unique_ptr<TranslationMap> InitializeTranslations(QObject* parent) {
               "percentage."));
 
     INSERT(Settings, sync_core_speed, tr("Synchronize Core Speed"),
-           tr("Synchronizes CPU core speed with the game's maximum rendering speed to boost FPS "
-              "without affecting game speed (animations, physics, etc.).\n"
-              "Can help reduce stuttering at lower framerates."));
+           tr("Synchronize core speed to the given value"));
+    INSERT(Settings, custom_refresh_rate, tr("Custom Refresh Rate"),
+           tr("Spoof the display refresh rate (default 60Hz)"));
 
     // Cpu
     INSERT(Settings, cpu_accuracy, tr("Accuracy:"),

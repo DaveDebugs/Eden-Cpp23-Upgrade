@@ -104,6 +104,7 @@
      <property name="title">
       <string>&amp;Debugging</string>
      </property>
+     <addaction name="action_Unlock_60FPS"/>
     </widget>
     <widget class="QMenu" name="menu_Game_List_Mode">
      <property name="title">
@@ -627,6 +628,14 @@
    </property>
    <property name="text">
     <string>&amp;Carousel View</string>
+   </property>
+  </action>
+  <action name="action_Unlock_60FPS">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Unlock 30FPS Games (Force 1x Swap Interval)</string>
    </property>
   </action>
  </widget>

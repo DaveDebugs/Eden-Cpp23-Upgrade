@@ -243,6 +243,16 @@ struct Values {
     SwitchableSetting<bool> sync_core_speed{linkage, false, "sync_core_speed", Category::Core,
                                             Specialization::Default};
 
+    SwitchableSetting<u16, true> custom_refresh_rate{linkage,
+                                                     60,
+                                                     30,
+                                                     240,
+                                                     "custom_refresh_rate",
+                                                     Category::Core,
+                                                     Specialization::Countable,
+                                                     true,
+                                                     true};
+
     // Cpu
     SwitchableSetting<CpuBackend, true> cpu_backend{linkage,
 #ifdef HAS_NCE

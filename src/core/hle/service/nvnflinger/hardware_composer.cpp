@@ -14,12 +14,19 @@
 #include "core/hle/service/nvnflinger/hardware_composer.h"
 #include "core/hle/service/nvnflinger/hwc_layer.h"
 #include "core/hle/service/nvnflinger/ui/graphic_buffer.h"
+#include "common/settings.h"
 
 namespace Service::Nvnflinger {
 
 namespace {
 
 s32 NormalizeSwapInterval(f32* out_speed_scale, s32 swap_interval) {
+    if (Settings::values.custom_refresh_rate.GetValue() > 60) {
+        // 60FPS Unlocker: Force the swap interval to 1 so the game renders at 60 FPS natively.
+        // This prevents the game from rendering at double speed, unlike spoofing VSync.
+        swap_interval = 1;
+    }
+
     if (swap_interval <= 0) {
         // As an extension, treat nonpositive swap interval as speed multiplier.
         if (out_speed_scale) {
