@@ -2361,8 +2361,8 @@ static bool RomFSRawCopy(size_t total_size, size_t& read_size, QProgressDialog& 
                 QCoreApplication::processEvents();
             }
 
-            const auto read = src_file->Read(buffer.data(), buffer.size(), i);
-            dest_file->Write(buffer.data(), read, i);
+            const auto read = src_file->Read(buffer, i);
+            dest_file->Write(std::span<const u8>(buffer.data(), read), i);
 
             read_size += read;
         }

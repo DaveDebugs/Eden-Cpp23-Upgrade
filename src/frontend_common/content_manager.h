@@ -156,8 +156,8 @@ inline InstallResult InstallNSP(Core::System& system, FileSys::VfsFilesystem& vf
                 dest->Resize(0);
                 return false;
             }
-            const auto read = src->Read(buffer.data(), buffer.size(), i);
-            dest->Write(buffer.data(), read, i);
+            const auto read = src->Read(buffer, i);
+            dest->Write(std::span<const u8>(buffer.data(), read), i);
         }
         return true;
     };
@@ -222,8 +222,8 @@ inline InstallResult InstallNCA(FileSys::VfsFilesystem& vfs, const std::string& 
                 dest->Resize(0);
                 return false;
             }
-            const auto read = src->Read(buffer.data(), buffer.size(), i);
-            dest->Write(buffer.data(), read, i);
+            const auto read = src->Read(buffer, i);
+            dest->Write(std::span<const u8>(buffer.data(), read), i);
         }
         return true;
     };
