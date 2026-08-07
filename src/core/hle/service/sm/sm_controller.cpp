@@ -122,10 +122,6 @@ Controller::Controller(Core::System& system_) : ServiceFramework{system_, "IpcCo
         {5, &Controller::SetPointerBufferSize, "SetPointerBufferSize"}, //TODO: where does this come from
     };
     RegisterHandlers(functions);
-    LOG_INFO(Service, "IpcController registered {} handlers", handlers.size());
-    for (const auto& [key, val] : handlers) {
-        LOG_INFO(Service, "  IpcController handler[{}] = {}", key, val.name);
-    }
 }
 
 Controller::~Controller() = default;
