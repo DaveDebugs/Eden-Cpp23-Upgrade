@@ -6,8 +6,10 @@
 
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <cstring>
 #include <span>
+#include <utility>
 #include <vector>
 
 #include "video_core/buffer_cache/buffer_cache_base.h"
@@ -155,7 +157,18 @@ public:
             return;
         }
 
-        scheduler.Finish();
+        // Grow to the next power of two so repeated growth converges quickly instead of
+        // reallocating on every new high-water mark.
+        num_indices_ = std::bit_ceil(num_indices_);
+
+        // The outgoing buffer may still be referenced by command buffers that have not
+        // executed yet. Retire it against the current tick and reclaim it once the GPU has
+        // passed that point, rather than blocking the CPU on a full scheduler.Finish().
+        std::erase_if(retired_buffers,
+                      [this](const auto& entry) { return scheduler.IsFree(entry.first); });
+        if (buffer) {
+            retired_buffers.emplace_back(scheduler.CurrentTick(), std::move(buffer));
+        }
 
         num_indices = num_indices_;
         index_type = IndexTypeFromNumElements(device, num_indices);
@@ -251,6 +264,10 @@ protected:
     MemoryCommit memory_commit{};
     VkIndexType index_type{};
     u32 num_indices = 0;
+
+    // Buffers replaced by a grow, kept alive until the GPU tick they were retired at has
+    // passed. Avoids stalling the CPU with scheduler.Finish() just to free the old buffer.
+    std::vector<std::pair<u64, vk::Buffer>> retired_buffers;
 };
 
 class QuadArrayIndexBuffer : public QuadIndexBuffer {

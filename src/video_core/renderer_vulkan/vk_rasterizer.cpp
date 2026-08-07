@@ -248,7 +248,9 @@ void RasterizerVulkan::PrepareDraw(bool is_indexed, Func&& draw_func) {
     if (!pipeline->Configure(is_indexed))
         return;
 
-    UpdateDynamicStates();
+    // Reuse the pipeline resolved above rather than letting UpdateDynamicStates and its
+    // callees each re-resolve it.
+    UpdateDynamicStates(pipeline);
 
     query_cache.NotifySegment(true);
     HandleTransformFeedback();
@@ -360,7 +362,9 @@ void RasterizerVulkan::DrawTexture() {
     texture_cache.SynchronizeDescriptors(false);
     texture_cache.UpdateRenderTargets(false);
 
-    UpdateDynamicStates();
+    // DrawTexture has no pipeline of its own; resolve once here to preserve the previous
+    // behavior of these dynamic-state updates (this is a cold path, unlike PrepareDraw).
+    UpdateDynamicStates(pipeline_cache.CurrentGraphicsPipeline());
 
     query_cache.NotifySegment(true);
     query_cache.CounterEnable(VideoCommon::QueryType::ZPassPixelCount64, maxwell3d->regs.zpass_pixel_count_enable);
@@ -1015,7 +1019,7 @@ bool AccelerateDMA::BufferToImage(const Tegra::DMA::ImageCopy& copy_info,
     return DmaBufferImageCopy<true>(copy_info, buffer_operand, image_operand);
 }
 
-void RasterizerVulkan::UpdateDynamicStates() {
+void RasterizerVulkan::UpdateDynamicStates(GraphicsPipeline* pipeline) {
     auto& regs = maxwell3d->regs;
     auto& flags = maxwell3d->dirty.flags;
     const auto topology = maxwell3d->draw_manager.draw_state.topology;
@@ -1082,8 +1086,8 @@ void RasterizerVulkan::UpdateDynamicStates() {
         UpdateLineRasterizationMode(regs);
         UpdateLineStippleEnable(regs);
         UpdateConservativeRasterizationMode(regs);
-        UpdateAlphaToCoverageEnable(regs);
-        UpdateAlphaToOneEnable(regs);
+        UpdateAlphaToCoverageEnable(regs, pipeline);
+        UpdateAlphaToOneEnable(regs, pipeline);
     }
 
     if (device.IsExtExtendedDynamicState3BlendingSupported()) {
@@ -1093,7 +1097,7 @@ void RasterizerVulkan::UpdateDynamicStates() {
     }
 
     if (device.IsExtVertexInputDynamicStateSupported()) {
-        if (auto* gp = pipeline_cache.CurrentGraphicsPipeline(); gp && gp->HasDynamicVertexInput()) {
+        if (pipeline != nullptr && pipeline->HasDynamicVertexInput()) {
             UpdateVertexInput(regs);
         }
     }
@@ -1600,14 +1604,14 @@ void RasterizerVulkan::UpdateDepthClampEnable(Tegra::Engines::Maxwell3D::Regs& r
         [is_enabled](vk::CommandBuffer cmdbuf) { cmdbuf.SetDepthClampEnableEXT(is_enabled); });
 }
 
-void RasterizerVulkan::UpdateAlphaToCoverageEnable(Tegra::Engines::Maxwell3D::Regs& regs) {
+void RasterizerVulkan::UpdateAlphaToCoverageEnable(Tegra::Engines::Maxwell3D::Regs& regs,
+                                                   GraphicsPipeline* pipeline) {
     if (!state_tracker.TouchAlphaToCoverageEnable()) {
         return;
     }
     if (!device.SupportsDynamicState3AlphaToCoverageEnable()) {
         return;
     }
-    GraphicsPipeline* const pipeline = pipeline_cache.CurrentGraphicsPipeline();
     const bool enable = pipeline != nullptr && pipeline->SupportsAlphaToCoverage() &&
                         regs.anti_alias_alpha_control.alpha_to_coverage != 0;
     scheduler.Record([enable](vk::CommandBuffer cmdbuf) {
@@ -1615,7 +1619,8 @@ void RasterizerVulkan::UpdateAlphaToCoverageEnable(Tegra::Engines::Maxwell3D::Re
     });
 }
 
-void RasterizerVulkan::UpdateAlphaToOneEnable(Tegra::Engines::Maxwell3D::Regs& regs) {
+void RasterizerVulkan::UpdateAlphaToOneEnable(Tegra::Engines::Maxwell3D::Regs& regs,
+                                              GraphicsPipeline* pipeline) {
     if (!state_tracker.TouchAlphaToOneEnable()) {
         return;
     }
@@ -1627,7 +1632,6 @@ void RasterizerVulkan::UpdateAlphaToOneEnable(Tegra::Engines::Maxwell3D::Regs& r
         });
         return;
     }
-    GraphicsPipeline* const pipeline = pipeline_cache.CurrentGraphicsPipeline();
     const bool enable = pipeline != nullptr && pipeline->SupportsAlphaToOne() &&
                         regs.anti_alias_alpha_control.alpha_to_one != 0;
     scheduler.Record([enable](vk::CommandBuffer cmdbuf) {
