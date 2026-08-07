@@ -277,6 +277,8 @@ endif()
 if (ENABLE_WEB_SERVICE)
     add_subdirectory(web_service)
 endif()
+add_subdirectory(eden_dump)
+
 
 if (ANDROID)
     add_subdirectory(android/app/src/main/jni)

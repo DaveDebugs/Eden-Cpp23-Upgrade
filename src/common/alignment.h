@@ -72,13 +72,15 @@ template <typename T>
 template <typename T>
     requires std::is_integral_v<T>
 [[nodiscard]] constexpr bool IsPowerOfTwo(T x) {
-    return x > 0 && ResetLeastSignificantOneBit(x) == 0;
+    using U = std::make_unsigned_t<T>;
+    return std::has_single_bit(static_cast<U>(x));
 }
 
 template <typename T>
     requires std::is_integral_v<T>
 [[nodiscard]] constexpr T FloorPowerOfTwo(T x) {
-    return T{1} << (sizeof(T) * 8 - std::countl_zero(x) - 1);
+    using U = std::make_unsigned_t<T>;
+    return static_cast<T>(std::bit_floor(static_cast<U>(x)));
 }
 
 template <typename T, size_t Align = 16>
