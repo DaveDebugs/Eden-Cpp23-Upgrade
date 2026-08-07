@@ -303,7 +303,7 @@ Shader::RuntimeInfo MakeRuntimeInfo(std::span<const Shader::IR::Program> program
 
 size_t GetTotalPipelineWorkers() {
     const size_t max_core_threads =
-        std::max<size_t>(static_cast<size_t>(std::thread::hardware_concurrency()), 2ULL) - 1ULL;
+        std::max<size_t>(static_cast<size_t>(std::thread::hardware_concurrency()), 1ULL);
 #ifdef __ANDROID__
     const int configured = AndroidSettings::values.pipeline_worker_count.GetValue();
     const int clamped = std::clamp(configured, 4, 8);
@@ -599,7 +599,7 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
     if (device.IsKhrPipelineExecutablePropertiesEnabled()) {
         state.statistics = std::make_unique<PipelineStatistics>(device);
     }
-    const auto load_compute{[&](std::ifstream& file, FileEnvironment env) {
+    const auto load_compute{[&](std::istream& file, FileEnvironment env) {
         ComputePipelineCacheKey key;
         file.read(reinterpret_cast<char*>(&key), sizeof(key));
 
@@ -617,7 +617,7 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
         });
         ++state.total;
     }};
-    const auto load_graphics{[&](std::ifstream& file, std::vector<FileEnvironment> envs) {
+    const auto load_graphics{[&](std::istream& file, std::vector<FileEnvironment> envs) {
         GraphicsPipelineCacheKey key;
         file.read(reinterpret_cast<char*>(&key), sizeof(key));
 

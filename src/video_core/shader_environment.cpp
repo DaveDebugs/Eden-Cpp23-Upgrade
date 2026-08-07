@@ -7,6 +7,8 @@
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
+#include <sstream>
+#include "common/zstd_compression.h"
 #include <memory>
 #include <optional>
 #include <utility>
@@ -198,7 +200,7 @@ void GenericEnvironment::Dump(u64 pipeline_hash, u64 shader_hash) {
     DumpImpl(pipeline_hash, shader_hash, code, read_highest, read_lowest, initial_offset, stage);
 }
 
-void GenericEnvironment::Serialize(std::ofstream& file) const {
+void GenericEnvironment::Serialize(std::ostream& file) const {
     const u64 code_size{static_cast<u64>(CachedSizeBytes())};
     const u64 num_texture_types{static_cast<u64>(texture_types.size())};
     const u64 num_texture_pixel_formats{static_cast<u64>(texture_pixel_formats.size())};
@@ -459,7 +461,7 @@ u32 ComputeEnvironment::ReadViewportTransformState() {
     return viewport_transform_state;
 }
 
-void FileEnvironment::Deserialize(std::ifstream& file) {
+void FileEnvironment::Deserialize(std::istream& file) {
     u64 code_size{};
     u64 num_texture_types{};
     u64 num_texture_pixel_formats{};
@@ -610,12 +612,26 @@ void SerializePipeline(std::span<const char> key, std::span<const GenericEnviron
     if (!std::ranges::all_of(envs, &GenericEnvironment::CanBeSerialized)) {
         return;
     }
+    std::stringstream ss(std::ios::binary | std::ios::in | std::ios::out);
     const u32 num_envs{static_cast<u32>(envs.size())};
-    file.write(reinterpret_cast<const char*>(&num_envs), sizeof(num_envs));
+    ss.write(reinterpret_cast<const char*>(&num_envs), sizeof(num_envs));
     for (const GenericEnvironment* const env : envs) {
-        env->Serialize(file);
+        env->Serialize(ss);
     }
-    file.write(key.data(), key.size_bytes());
+    ss.write(key.data(), key.size_bytes());
+
+    std::string uncompressed = ss.str();
+    std::vector<u8> compressed = Common::Compression::CompressDataZSTDDefault(
+        reinterpret_cast<const u8*>(uncompressed.data()), uncompressed.size());
+
+    if (compressed.empty()) {
+        LOG_ERROR(Common_Filesystem, "Failed to compress pipeline cache block");
+        return;
+    }
+
+    const u64 compressed_size = compressed.size();
+    file.write(reinterpret_cast<const char*>(&compressed_size), sizeof(compressed_size));
+    file.write(reinterpret_cast<const char*>(compressed.data()), compressed.size());
 
 } catch (const std::ios_base::failure& e) {
     LOG_ERROR(Common_Filesystem, "{}", e.what());
@@ -627,8 +643,8 @@ void SerializePipeline(std::span<const char> key, std::span<const GenericEnviron
 
 void LoadPipelines(
     std::stop_token stop_loading, const std::filesystem::path& filename, u32 expected_cache_version,
-    Common::UniqueFunction<void, std::ifstream&, FileEnvironment> load_compute,
-    Common::UniqueFunction<void, std::ifstream&, std::vector<FileEnvironment>> load_graphics) try {
+    Common::UniqueFunction<void, std::istream&, FileEnvironment> load_compute,
+    Common::UniqueFunction<void, std::istream&, std::vector<FileEnvironment>> load_graphics) try {
     std::ifstream file(filename, std::ios::binary | std::ios::ate);
     if (!file.is_open()) {
         return;
@@ -661,16 +677,30 @@ void LoadPipelines(
         if (stop_loading.stop_requested()) {
             return;
         }
+        u64 compressed_size{};
+        file.read(reinterpret_cast<char*>(&compressed_size), sizeof(compressed_size));
+        std::vector<u8> compressed(compressed_size);
+        file.read(reinterpret_cast<char*>(compressed.data()), compressed_size);
+
+        std::vector<u8> uncompressed = Common::Compression::DecompressDataZSTD(compressed);
+        if (uncompressed.empty()) {
+            LOG_ERROR(Common_Filesystem, "Failed to decompress pipeline cache block");
+            break;
+        }
+
+        std::string uncompressed_str(reinterpret_cast<const char*>(uncompressed.data()), uncompressed.size());
+        std::istringstream ss(uncompressed_str, std::ios::binary);
+
         u32 num_envs{};
-        file.read(reinterpret_cast<char*>(&num_envs), sizeof(num_envs));
+        ss.read(reinterpret_cast<char*>(&num_envs), sizeof(num_envs));
         std::vector<FileEnvironment> envs(num_envs);
         for (FileEnvironment& env : envs) {
-            env.Deserialize(file);
+            env.Deserialize(ss);
         }
         if (envs.front().ShaderStage() == Shader::Stage::Compute) {
-            load_compute(file, std::move(envs.front()));
+            load_compute(ss, std::move(envs.front()));
         } else {
-            load_graphics(file, std::move(envs));
+            load_graphics(ss, std::move(envs));
         }
     }
 
