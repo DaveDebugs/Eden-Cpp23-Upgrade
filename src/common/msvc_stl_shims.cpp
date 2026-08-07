@@ -1,3 +1,5 @@
+#if 0
+
 #include <cstdint>
 #include <algorithm>
 
@@ -46,3 +48,5 @@ extern "C" {
 }
 
 #endif
+
+#endif // 0

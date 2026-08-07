@@ -176,6 +176,15 @@ endif()
 
 # Set runtime library to MD/MDd for all configurations
 if(MSVC)
+    # Phase 3: Enable Global Link Time Optimization for performance
+    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
+
+    # Phase 3: Enable AVX2 auto-vectorization for modern CPUs
+    if(ARCHITECTURE_x86_64)
+        set(CMAKE_CXX_FLAGS_INIT "${CMAKE_CXX_FLAGS_INIT} /arch:AVX2")
+        set(CMAKE_C_FLAGS_INIT "${CMAKE_C_FLAGS_INIT} /arch:AVX2")
+    endif()
+
     if (YUZU_USE_BUNDLED_QT AND ARCHITECTURE_arm64)
         set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
         set(libflag MT)
