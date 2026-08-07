@@ -168,6 +168,11 @@ private:
     DescriptorAllocator descriptor_allocator;
     vk::PipelineLayout pipeline_layout;
     vk::DescriptorUpdateTemplate descriptor_update_template;
+    // VK_EXT_graphics_pipeline_library: library sub-pipelines linked into `pipeline`.
+    // When linking without LINK_TIME_OPTIMIZATION the driver may reference library
+    // internals at draw time, so these must outlive `pipeline` (declared before it so
+    // they are destroyed after it).
+    std::array<vk::Pipeline, 4> pipeline_libraries;
     vk::Pipeline pipeline;
 
     std::condition_variable build_condvar;

@@ -991,7 +991,10 @@ void GraphicsPipeline::MakePipeline(VkRenderPass render_pass) {
         flags |= VK_PIPELINE_CREATE_CAPTURE_STATISTICS_BIT_KHR;
     }
 
-    if (device.HasGraphicsPipelineLibrary()) {
+    // Only take the library path when the driver advertises fast linking. Without it the
+    // driver is permitted to re-compile when linking, which would make this path cost four
+    // extra pipeline creations plus a full compile -- worse than the monolithic path below.
+    if (device.SupportsFastPipelineLibraryLinking()) {
         static_vector<VkPipelineShaderStageCreateInfo, 5> pre_raster_stages;
         static_vector<VkPipelineShaderStageCreateInfo, 1> fragment_stages;
         for (const auto& stage : shader_stages) {
@@ -1007,7 +1010,8 @@ void GraphicsPipeline::MakePipeline(VkRenderPass render_pass) {
             .pNext = nullptr,
             .flags = VK_GRAPHICS_PIPELINE_LIBRARY_VERTEX_INPUT_INTERFACE_BIT_EXT,
         };
-        vk::Pipeline vertex_lib = device.GetLogical().CreateGraphicsPipeline({
+        vk::Pipeline& vertex_lib = pipeline_libraries[0];
+        vertex_lib = device.GetLogical().CreateGraphicsPipeline({
             .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
             .pNext = &lib_vertex_ci,
             .flags = flags | VK_PIPELINE_CREATE_LIBRARY_BIT_KHR,
@@ -1024,7 +1028,8 @@ void GraphicsPipeline::MakePipeline(VkRenderPass render_pass) {
             .pNext = nullptr,
             .flags = VK_GRAPHICS_PIPELINE_LIBRARY_PRE_RASTERIZATION_SHADERS_BIT_EXT,
         };
-        vk::Pipeline pre_raster_lib = device.GetLogical().CreateGraphicsPipeline({
+        vk::Pipeline& pre_raster_lib = pipeline_libraries[1];
+        pre_raster_lib = device.GetLogical().CreateGraphicsPipeline({
             .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
             .pNext = &lib_pre_raster_ci,
             .flags = flags | VK_PIPELINE_CREATE_LIBRARY_BIT_KHR,
@@ -1044,7 +1049,8 @@ void GraphicsPipeline::MakePipeline(VkRenderPass render_pass) {
             .pNext = nullptr,
             .flags = VK_GRAPHICS_PIPELINE_LIBRARY_FRAGMENT_SHADER_BIT_EXT,
         };
-        vk::Pipeline fragment_lib = device.GetLogical().CreateGraphicsPipeline({
+        vk::Pipeline& fragment_lib = pipeline_libraries[2];
+        fragment_lib = device.GetLogical().CreateGraphicsPipeline({
             .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
             .pNext = &lib_fragment_ci,
             .flags = flags | VK_PIPELINE_CREATE_LIBRARY_BIT_KHR,
@@ -1063,7 +1069,8 @@ void GraphicsPipeline::MakePipeline(VkRenderPass render_pass) {
             .pNext = nullptr,
             .flags = VK_GRAPHICS_PIPELINE_LIBRARY_FRAGMENT_OUTPUT_INTERFACE_BIT_EXT,
         };
-        vk::Pipeline fragment_output_lib = device.GetLogical().CreateGraphicsPipeline({
+        vk::Pipeline& fragment_output_lib = pipeline_libraries[3];
+        fragment_output_lib = device.GetLogical().CreateGraphicsPipeline({
             .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
             .pNext = &lib_fragment_output_ci,
             .flags = flags | VK_PIPELINE_CREATE_LIBRARY_BIT_KHR,

@@ -353,7 +353,12 @@ void MasterSemaphore::WaitThread(std::stop_token token) {
             free_queue.push_front(std::move(fence));
             gpu_tick.store(host_tick, std::memory_order_release);
         }
-        gpu_tick.notify_one();
+        // notify_all, not notify_one: several threads can wait on gpu_tick concurrently for
+        // different target ticks (render thread via Scheduler::Flush/Finish, presentation
+        // thread via Swapchain::AcquireNextImage). notify_one may wake a waiter whose target
+        // has not been reached; it re-sleeps and the satisfied waiter is never woken, which
+        // deadlocks the fence fallback path on drivers without timeline semaphores.
+        gpu_tick.notify_all();
     }
 }
 

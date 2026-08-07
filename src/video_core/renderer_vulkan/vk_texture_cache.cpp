@@ -1787,22 +1787,29 @@ void Image::DownloadMemory(std::span<VkBuffer> buffers_span, std::span<size_t> o
         ScaleDown();
     }
 
-    // RE-USE MSAA UPLOAD CODE BUT NOW FOR DOWNLOAD
-    if (info.num_samples > 1 && runtime->msaa_copy_pass) {
-        // TODO: Depth/stencil formats need special handling
-        if (aspect_mask == VK_IMAGE_ASPECT_COLOR_BIT) {
+    // MSAA color images are resolved through a temporary non-MSAA image before download.
+    // Depth/stencil MSAA has no MSAACopyPass support, so it deliberately falls through to the
+    // generic path below. Previously this was an inner `if` with no `else`, which meant MSAA
+    // depth/stencil downloads recorded no copy at all and returned stale staging memory.
+    if (info.num_samples > 1 && runtime->msaa_copy_pass &&
+        aspect_mask == VK_IMAGE_ASPECT_COLOR_BIT) {
             ImageInfo temp_info = info;
             temp_info.num_samples = 1;
 
             VkImageCreateInfo image_ci = MakeImageCreateInfo(runtime->device, temp_info);
-            image_ci.usage = original_image.UsageFlags();
-            vk::Image temp_image = runtime->memory_allocator.CreateImage(image_ci);
+            // Request the usage MSAACopyPass actually needs rather than inheriting the source
+            // image's usage, which can miss STORAGE/TRANSFER bits and trip validation.
+            image_ci.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+                             VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
 
-            Image temp_wrapper(*runtime, temp_info, 0, 0);
-            temp_wrapper.original_image = std::move(temp_image);
-            temp_wrapper.current_image = &Image::original_image;
-            temp_wrapper.aspect_mask = aspect_mask;
-            temp_wrapper.initialized = true;
+            // The temporary image must outlive the recorded command. A stack-allocated wrapper
+            // would free the VkImage at function exit while the worker thread still needs it --
+            // the same defect already fixed in UploadMemory above.
+            auto temp_wrapper = std::make_shared<Image>(*runtime, temp_info, 0, 0);
+            temp_wrapper->original_image = runtime->memory_allocator.CreateImage(image_ci);
+            temp_wrapper->current_image = &Image::original_image;
+            temp_wrapper->aspect_mask = aspect_mask;
+            temp_wrapper->initialized = true;
 
             std::vector<VideoCommon::ImageCopy> image_copies;
             for (const auto& copy : copies) {
@@ -1815,7 +1822,7 @@ void Image::DownloadMemory(std::span<VkBuffer> buffers_span, std::span<size_t> o
                 image_copies.push_back(image_copy);
             }
 
-            runtime->msaa_copy_pass->CopyImage(temp_wrapper, *this, image_copies, true);
+            runtime->msaa_copy_pass->CopyImage(*temp_wrapper, *this, image_copies, true);
 
             boost::container::small_vector<VkBuffer, 8> buffers_vector{};
             boost::container::small_vector<boost::container::small_vector<VkBufferImageCopy, 16>, 8>
@@ -1826,9 +1833,11 @@ void Image::DownloadMemory(std::span<VkBuffer> buffers_span, std::span<size_t> o
                     TransformBufferImageCopies(copies, offsets_span[index], aspect_mask));
             }
 
+            const VkImage temp_vk_image = *temp_wrapper->original_image;
             scheduler->RequestOutsideRenderPassOperationContext();
-            scheduler->Record([buffers = std::move(buffers_vector), image = *temp_wrapper.original_image,
-                               aspect_mask_ = aspect_mask, vk_copies](vk::CommandBuffer cmdbuf) {
+            scheduler->Record([buffers = std::move(buffers_vector), image = temp_vk_image,
+                               aspect_mask_ = aspect_mask, vk_copies,
+                               keep = temp_wrapper](vk::CommandBuffer cmdbuf) {
                 const VkImageMemoryBarrier read_barrier{
                     .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
                     .pNext = nullptr,
@@ -1882,9 +1891,22 @@ void Image::DownloadMemory(std::span<VkBuffer> buffers_span, std::span<size_t> o
                 cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_TRANSFER_BIT, vk::PIPELINE_STAGE_GRAPHICS_COMPUTE,
                                        0, memory_write_barrier, nullptr, image_write_barrier);
             });
+
+            // The MSAACopyPass commands recorded above also reference the temporary image and
+            // its views, and those are not covered by the `keep` capture. Drain the queue
+            // before the shared_ptr goes out of scope.
+            const u64 tick = scheduler->Flush();
+            scheduler->Wait(tick);
+
+            // This path returns early, so it must undo the ScaleDown() performed on entry --
+            // previously it did not, leaving a rescaled image stuck scaled-down after download.
+            if (is_rescaled) {
+                ScaleUp(true);
+            }
             return;
-        }
-    } else {
+    }
+
+    {
         boost::container::small_vector<VkBuffer, 8> buffers_vector{};
         boost::container::small_vector<boost::container::small_vector<VkBufferImageCopy, 16>, 8>
             vk_copies;

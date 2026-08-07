@@ -782,6 +782,15 @@ FN_MAX_LIMIT_LIST
         return extensions.graphics_pipeline_library;
     }
 
+    /// Returns true if linking pipeline libraries is cheap on this driver.
+    /// When this is false, the driver may re-compile at link time, so building four library
+    /// sub-pipelines and linking them costs strictly more than one monolithic pipeline --
+    /// the opposite of what the extension is used for here.
+    bool SupportsFastPipelineLibraryLinking() const {
+        return extensions.graphics_pipeline_library &&
+               properties.graphics_pipeline_library.graphicsPipelineLibraryFastLinking == VK_TRUE;
+    }
+
     /// Returns the minimum supported version of SPIR-V.
     u32 SupportedSpirvVersion() const {
         if (instance_version >= VK_API_VERSION_1_3) {

@@ -425,7 +425,11 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
                                        driver_id == VK_DRIVER_ID_INTEL_OPEN_SOURCE_MESA,
 
         .has_broken_spirv_clamp = driver_id == VK_DRIVER_ID_INTEL_PROPRIETARY_WINDOWS,
-        .has_broken_spirv_position_input = driver_id == false,
+        // NOTE: this previously read `driver_id == false`, i.e. `driver_id == 0`. No VkDriverId
+        // is 0, so the quirk was unconditionally disabled and the intended driver never got it.
+        // Written explicitly to preserve that behavior; restore the intended VK_DRIVER_ID_* here
+        // if this workaround is still needed.
+        .has_broken_spirv_position_input = false,
         .has_broken_unsigned_image_offsets = false,
         .has_broken_signed_operations = false,
         .has_broken_fp16_float_controls = driver_id == VK_DRIVER_ID_NVIDIA_PROPRIETARY,
