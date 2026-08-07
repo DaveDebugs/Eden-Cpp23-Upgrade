@@ -641,6 +641,10 @@ void SerializePipeline(std::span<const char> key, std::span<const GenericEnviron
     }
 }
 
+// A serialized block holds one compute shader or the stages of one graphics pipeline, so a
+// legitimate count is tiny. Anything beyond this means the block header is garbage.
+constexpr u32 MAX_ENVIRONMENTS_PER_BLOCK = 16;
+
 void LoadPipelines(
     std::stop_token stop_loading, const std::filesystem::path& filename, u32 expected_cache_version,
     Common::UniqueFunction<void, std::istream&, FileEnvironment> load_compute,
@@ -679,6 +683,20 @@ void LoadPipelines(
         }
         u64 compressed_size{};
         file.read(reinterpret_cast<char*>(&compressed_size), sizeof(compressed_size));
+
+        // This size comes straight off disk. A cache written by an older build (before the
+        // zstd block format), or a truncated/corrupt one, produces an arbitrary 64-bit
+        // value here. Sizing a vector with it throws std::bad_alloc, which used to escape
+        // this function entirely and abort the process. Bound it by what is actually left.
+        const std::streamoff remaining = end - file.tellg();
+        if (compressed_size == 0 || remaining <= 0 ||
+            compressed_size > static_cast<u64>(remaining)) {
+            LOG_ERROR(Common_Filesystem,
+                      "Pipeline cache block claims {} bytes but only {} remain; discarding cache",
+                      compressed_size, remaining);
+            break;
+        }
+
         std::vector<u8> compressed(compressed_size);
         file.read(reinterpret_cast<char*>(compressed.data()), compressed_size);
 
@@ -693,6 +711,13 @@ void LoadPipelines(
 
         u32 num_envs{};
         ss.read(reinterpret_cast<char*>(&num_envs), sizeof(num_envs));
+        // Same reasoning as the block size above, plus envs.front() below is undefined
+        // behaviour on an empty vector.
+        if (num_envs == 0 || num_envs > MAX_ENVIRONMENTS_PER_BLOCK) {
+            LOG_ERROR(Common_Filesystem,
+                      "Pipeline cache block declares {} environments; discarding cache", num_envs);
+            break;
+        }
         std::vector<FileEnvironment> envs(num_envs);
         for (FileEnvironment& env : envs) {
             env.Deserialize(ss);
@@ -706,6 +731,15 @@ void LoadPipelines(
 
 } catch (const std::ios_base::failure& e) {
     LOG_ERROR(Common_Filesystem, "{}", e.what());
+    if (!Common::FS::RemoveFile(filename)) {
+        LOG_ERROR(Common_Filesystem, "Failed to delete pipeline cache file {}",
+                  Common::FS::PathToUTF8String(filename));
+    }
+} catch (const std::exception& e) {
+    // A corrupt or stale cache must never take the process down. This previously caught
+    // only ios_base::failure, so a std::bad_alloc raised by sizing a buffer from a bogus
+    // on-disk length escaped into std::terminate and aborted the emulator on boot.
+    LOG_ERROR(Common_Filesystem, "Failed to load pipeline cache ({}); discarding it", e.what());
     if (!Common::FS::RemoveFile(filename)) {
         LOG_ERROR(Common_Filesystem, "Failed to delete pipeline cache file {}",
                   Common::FS::PathToUTF8String(filename));

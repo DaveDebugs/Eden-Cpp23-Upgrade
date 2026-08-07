@@ -1029,17 +1029,38 @@ vk::PipelineCache PipelineCache::LoadVulkanPipelineCache(const std::filesystem::
         }
 
         static constexpr size_t header_size = magic_number.size() + sizeof(cache_version);
+        // `end` is the file size. If the file is shorter than the header this subtraction
+        // underflows to a near-SIZE_MAX value, and sizing the vector with it throws
+        // std::bad_alloc -- which the catch below does not handle, aborting the process.
+        if (static_cast<u64>(end) < header_size) {
+            LOG_ERROR(Common_Filesystem,
+                      "Vulkan driver pipeline cache \"{}\" is {} bytes, shorter than its header; "
+                      "ignoring it",
+                      Common::FS::PathToUTF8String(filename), static_cast<u64>(end));
+            return create_pipeline_cache(0, nullptr);
+        }
         const size_t cache_size = static_cast<size_t>(end) - header_size;
         std::vector<char> cache_data(cache_size);
         file.read(cache_data.data(), cache_size);
 
-        LOG_INFO(Render_Vulkan,
-                 "Loaded Vulkan driver pipeline cache: ", Common::FS::PathToUTF8String(filename));
+        LOG_INFO(Render_Vulkan, "Loaded Vulkan driver pipeline cache: {} ({} bytes)",
+                 Common::FS::PathToUTF8String(filename), cache_size);
 
         return create_pipeline_cache(cache_size, cache_data.data());
 
     } catch (const std::ios_base::failure& e) {
         LOG_ERROR(Common_Filesystem, "{}", e.what());
+        if (!Common::FS::RemoveFile(filename)) {
+            LOG_ERROR(Common_Filesystem, "Failed to delete Vulkan driver pipeline cache file {}",
+                      Common::FS::PathToUTF8String(filename));
+        }
+
+        return create_pipeline_cache(0, nullptr);
+    } catch (const std::exception& e) {
+        // Same reasoning as LoadPipelines: a bad cache should cost us the cache, not the
+        // process. std::bad_alloc used to escape here and abort on boot.
+        LOG_ERROR(Common_Filesystem, "Failed to load Vulkan driver pipeline cache ({}); ignoring",
+                  e.what());
         if (!Common::FS::RemoveFile(filename)) {
             LOG_ERROR(Common_Filesystem, "Failed to delete Vulkan driver pipeline cache file {}",
                       Common::FS::PathToUTF8String(filename));
