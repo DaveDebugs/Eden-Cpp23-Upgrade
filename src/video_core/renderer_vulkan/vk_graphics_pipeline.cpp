@@ -991,27 +991,135 @@ void GraphicsPipeline::MakePipeline(VkRenderPass render_pass) {
         flags |= VK_PIPELINE_CREATE_CAPTURE_STATISTICS_BIT_KHR;
     }
 
-    pipeline = device.GetLogical().CreateGraphicsPipeline({
-        .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-        .pNext = nullptr,
-        .flags = flags,
-        .stageCount = static_cast<u32>(shader_stages.size()),
-        .pStages = shader_stages.data(),
-        .pVertexInputState = &vertex_input_ci,
-        .pInputAssemblyState = &input_assembly_ci,
-        .pTessellationState = &tessellation_ci,
-        .pViewportState = &viewport_ci,
-        .pRasterizationState = &rasterization_ci,
-        .pMultisampleState = &multisample_ci,
-        .pDepthStencilState = &depth_stencil_ci,
-        .pColorBlendState = &color_blend_ci,
-        .pDynamicState = &dynamic_state_ci,
-        .layout = *pipeline_layout,
-        .renderPass = render_pass,
-        .subpass = 0,
-        .basePipelineHandle = nullptr,
-        .basePipelineIndex = 0,
-    }, *pipeline_cache);
+    if (device.HasGraphicsPipelineLibrary()) {
+        static_vector<VkPipelineShaderStageCreateInfo, 5> pre_raster_stages;
+        static_vector<VkPipelineShaderStageCreateInfo, 1> fragment_stages;
+        for (const auto& stage : shader_stages) {
+            if (stage.stage == VK_SHADER_STAGE_FRAGMENT_BIT) {
+                fragment_stages.push_back(stage);
+            } else {
+                pre_raster_stages.push_back(stage);
+            }
+        }
+
+        VkGraphicsPipelineLibraryCreateInfoEXT lib_vertex_ci{
+            .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_LIBRARY_CREATE_INFO_EXT,
+            .pNext = nullptr,
+            .flags = VK_GRAPHICS_PIPELINE_LIBRARY_VERTEX_INPUT_INTERFACE_BIT_EXT,
+        };
+        vk::Pipeline vertex_lib = device.GetLogical().CreateGraphicsPipeline({
+            .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+            .pNext = &lib_vertex_ci,
+            .flags = flags | VK_PIPELINE_CREATE_LIBRARY_BIT_KHR,
+            .pVertexInputState = &vertex_input_ci,
+            .pInputAssemblyState = &input_assembly_ci,
+            .pDynamicState = &dynamic_state_ci,
+            .layout = *pipeline_layout,
+            .renderPass = render_pass,
+            .subpass = 0,
+        }, *pipeline_cache);
+
+        VkGraphicsPipelineLibraryCreateInfoEXT lib_pre_raster_ci{
+            .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_LIBRARY_CREATE_INFO_EXT,
+            .pNext = nullptr,
+            .flags = VK_GRAPHICS_PIPELINE_LIBRARY_PRE_RASTERIZATION_SHADERS_BIT_EXT,
+        };
+        vk::Pipeline pre_raster_lib = device.GetLogical().CreateGraphicsPipeline({
+            .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+            .pNext = &lib_pre_raster_ci,
+            .flags = flags | VK_PIPELINE_CREATE_LIBRARY_BIT_KHR,
+            .stageCount = static_cast<u32>(pre_raster_stages.size()),
+            .pStages = pre_raster_stages.data(),
+            .pTessellationState = &tessellation_ci,
+            .pViewportState = &viewport_ci,
+            .pRasterizationState = &rasterization_ci,
+            .pDynamicState = &dynamic_state_ci,
+            .layout = *pipeline_layout,
+            .renderPass = render_pass,
+            .subpass = 0,
+        }, *pipeline_cache);
+
+        VkGraphicsPipelineLibraryCreateInfoEXT lib_fragment_ci{
+            .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_LIBRARY_CREATE_INFO_EXT,
+            .pNext = nullptr,
+            .flags = VK_GRAPHICS_PIPELINE_LIBRARY_FRAGMENT_SHADER_BIT_EXT,
+        };
+        vk::Pipeline fragment_lib = device.GetLogical().CreateGraphicsPipeline({
+            .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+            .pNext = &lib_fragment_ci,
+            .flags = flags | VK_PIPELINE_CREATE_LIBRARY_BIT_KHR,
+            .stageCount = static_cast<u32>(fragment_stages.size()),
+            .pStages = fragment_stages.data(),
+            .pMultisampleState = &multisample_ci,
+            .pDepthStencilState = &depth_stencil_ci,
+            .pDynamicState = &dynamic_state_ci,
+            .layout = *pipeline_layout,
+            .renderPass = render_pass,
+            .subpass = 0,
+        }, *pipeline_cache);
+
+        VkGraphicsPipelineLibraryCreateInfoEXT lib_fragment_output_ci{
+            .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_LIBRARY_CREATE_INFO_EXT,
+            .pNext = nullptr,
+            .flags = VK_GRAPHICS_PIPELINE_LIBRARY_FRAGMENT_OUTPUT_INTERFACE_BIT_EXT,
+        };
+        vk::Pipeline fragment_output_lib = device.GetLogical().CreateGraphicsPipeline({
+            .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+            .pNext = &lib_fragment_output_ci,
+            .flags = flags | VK_PIPELINE_CREATE_LIBRARY_BIT_KHR,
+            .pMultisampleState = &multisample_ci,
+            .pColorBlendState = &color_blend_ci,
+            .pDynamicState = &dynamic_state_ci,
+            .layout = *pipeline_layout,
+            .renderPass = render_pass,
+            .subpass = 0,
+        }, *pipeline_cache);
+
+        std::array<VkPipeline, 4> libraries{
+            *vertex_lib,
+            *pre_raster_lib,
+            *fragment_lib,
+            *fragment_output_lib,
+        };
+        VkPipelineLibraryCreateInfoKHR link_ci{
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_LIBRARY_CREATE_INFO_KHR,
+            .pNext = nullptr,
+            .libraryCount = static_cast<u32>(libraries.size()),
+            .pLibraries = libraries.data(),
+        };
+        pipeline = device.GetLogical().CreateGraphicsPipeline({
+            .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+            .pNext = &link_ci,
+            .flags = flags,
+            .layout = *pipeline_layout,
+            .renderPass = render_pass,
+            .subpass = 0,
+            .basePipelineHandle = nullptr,
+            .basePipelineIndex = 0,
+        }, *pipeline_cache);
+    } else {
+        pipeline = device.GetLogical().CreateGraphicsPipeline({
+            .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+            .pNext = nullptr,
+            .flags = flags,
+            .stageCount = static_cast<u32>(shader_stages.size()),
+            .pStages = shader_stages.data(),
+            .pVertexInputState = &vertex_input_ci,
+            .pInputAssemblyState = &input_assembly_ci,
+            .pTessellationState = &tessellation_ci,
+            .pViewportState = &viewport_ci,
+            .pRasterizationState = &rasterization_ci,
+            .pMultisampleState = &multisample_ci,
+            .pDepthStencilState = &depth_stencil_ci,
+            .pColorBlendState = &color_blend_ci,
+            .pDynamicState = &dynamic_state_ci,
+            .layout = *pipeline_layout,
+            .renderPass = render_pass,
+            .subpass = 0,
+            .basePipelineHandle = nullptr,
+            .basePipelineIndex = 0,
+        }, *pipeline_cache);
+    }
 
     // Log graphics pipeline creation
     if (GPU::Logging::IsActive()) {

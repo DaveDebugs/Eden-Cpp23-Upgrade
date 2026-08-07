@@ -1099,6 +1099,11 @@ bool Device::GetSuitability(bool requires_swapchain) {
             VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_5_PROPERTIES_KHR;
         SetNext(next, properties.maintenance5);
     }
+    if (extensions.graphics_pipeline_library) {
+        properties.graphics_pipeline_library.sType =
+            VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_GRAPHICS_PIPELINE_LIBRARY_PROPERTIES_EXT;
+        SetNext(next, properties.graphics_pipeline_library);
+    }
 
     // Perform the property fetch.
     physical.GetProperties2(properties2);
@@ -1340,6 +1345,13 @@ void Device::RemoveUnsuitableExtensions() {
     RemoveExtensionFeatureIfUnsuitable(extensions.vertex_input_dynamic_state,
                                        features.vertex_input_dynamic_state,
                                        VK_EXT_VERTEX_INPUT_DYNAMIC_STATE_EXTENSION_NAME);
+
+    // VK_EXT_graphics_pipeline_library
+    extensions.graphics_pipeline_library =
+        features.graphics_pipeline_library.graphicsPipelineLibrary;
+    RemoveExtensionFeatureIfUnsuitable(extensions.graphics_pipeline_library,
+                                       features.graphics_pipeline_library,
+                                       VK_EXT_GRAPHICS_PIPELINE_LIBRARY_EXTENSION_NAME);
 
     // VK_KHR_pipeline_executable_properties
     if (Settings::values.renderer_shader_feedback.GetValue()) {
