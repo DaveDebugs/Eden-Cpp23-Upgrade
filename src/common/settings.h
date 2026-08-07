@@ -253,6 +253,15 @@ struct Values {
                                                      true,
                                                      true};
 
+    // Forces the nvnflinger composer's swap interval to 1, so games that cap themselves
+    // by presenting every 2nd vsync are presented every vsync instead.
+    // NOTE: this only yields a real framerate increase for games that derive their
+    // simulation step from measured frame time. Games with a hardcoded 30 FPS timestep
+    // advance their world by a fixed 33.3ms per presented frame, so unlocking them makes
+    // the game run at double speed rather than at 60 FPS. See NormalizeSwapInterval().
+    SwitchableSetting<bool> unlock_30fps_games{linkage, false, "unlock_30fps_games", Category::Core,
+                                               Specialization::Default};
+
     // Cpu
     SwitchableSetting<CpuBackend, true> cpu_backend{linkage,
 #ifdef HAS_NCE

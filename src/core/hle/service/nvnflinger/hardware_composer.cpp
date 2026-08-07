@@ -21,9 +21,17 @@ namespace Service::Nvnflinger {
 namespace {
 
 s32 NormalizeSwapInterval(f32* out_speed_scale, s32 swap_interval) {
-    if (Settings::values.custom_refresh_rate.GetValue() > 60) {
-        // 60FPS Unlocker: Force the swap interval to 1 so the game renders at 60 FPS natively.
-        // This prevents the game from rendering at double speed, unlike spoofing VSync.
+    if (Settings::values.unlock_30fps_games.GetValue()) {
+        // 30 FPS unlocker: present every vsync instead of honouring the game's requested
+        // interval. The interval also drives buffer release timing in
+        // TryAcquireFramebufferLocked(), which is what actually paces the guest: releasing
+        // a buffer after 1 composer tick instead of 2 unblocks the game twice as often.
+        //
+        // That is a genuine framerate gain ONLY for titles that derive their simulation
+        // step from measured frame time. A title with a hardcoded 30 FPS timestep advances
+        // its world by a fixed ~33.3ms per presented frame, so doubling the presentation
+        // rate doubles its wall-clock game speed instead (observed on DOOM 2016).
+        // Unlocking those properly requires patching the game's timestep, not the composer.
         swap_interval = 1;
     }
 

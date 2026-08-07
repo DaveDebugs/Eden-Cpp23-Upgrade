@@ -637,6 +637,9 @@
    <property name="text">
     <string>Unlock 30FPS Games (Force 1x Swap Interval)</string>
    </property>
+   <property name="toolTip">
+    <string>Only speeds up games that time themselves from measured frame time. Games with a fixed 30 FPS timestep (e.g. DOOM 2016) will run at double speed instead of at 60 FPS.</string>
+   </property>
   </action>
  </widget>
  <resources>

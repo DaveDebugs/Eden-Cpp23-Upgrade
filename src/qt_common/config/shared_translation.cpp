@@ -86,6 +86,11 @@ std::unique_ptr<TranslationMap> InitializeTranslations(QObject* parent) {
            tr("Synchronize core speed to the given value"));
     INSERT(Settings, custom_refresh_rate, tr("Custom Refresh Rate"),
            tr("Spoof the display refresh rate (default 60Hz)"));
+    INSERT(Settings, unlock_30fps_games, tr("Unlock 30 FPS Games"),
+           tr("Presents every vsync instead of honoring a game's 30 FPS presentation cap.\n"
+              "Only increases the framerate of games that time themselves from measured "
+              "frame time. Games with a fixed 30 FPS timestep will run at double speed "
+              "instead of at 60 FPS."));
 
     // Cpu
     INSERT(Settings, cpu_accuracy, tr("Accuracy:"),
