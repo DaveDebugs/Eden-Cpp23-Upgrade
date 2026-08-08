@@ -55,7 +55,9 @@ using VideoCommon::LoadPipelines;
 using VideoCommon::SerializePipeline;
 using Context = ShaderContext::Context;
 
-constexpr u32 CACHE_VERSION = 15;
+// Bumped to 16 alongside the Vulkan cache: e225179 changed the shared on-disk block layout
+// to zstd-compressed blocks without bumping either version.
+constexpr u32 CACHE_VERSION = 16;
 
 template <typename Container>
 auto MakeSpan(Container& container) {

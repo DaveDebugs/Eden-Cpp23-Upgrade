@@ -6,11 +6,13 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <sstream>
 #include "common/zstd_compression.h"
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <utility>
 
 #include "common/assert.h"
@@ -691,10 +693,12 @@ void LoadPipelines(
         const std::streamoff remaining = end - file.tellg();
         if (compressed_size == 0 || remaining <= 0 ||
             compressed_size > static_cast<u64>(remaining)) {
-            LOG_ERROR(Common_Filesystem,
-                      "Pipeline cache block claims {} bytes but only {} remain; discarding cache",
-                      compressed_size, remaining);
-            break;
+            // Throw rather than break: the handler below deletes the file. Merely stopping
+            // would leave the unreadable cache on disk to be rejected again every boot,
+            // with new pipelines appended to it -- so preloading would never recover.
+            throw std::runtime_error(
+                std::format("pipeline cache block claims {} bytes but only {} remain",
+                            compressed_size, static_cast<s64>(remaining)));
         }
 
         std::vector<u8> compressed(compressed_size);
@@ -714,9 +718,9 @@ void LoadPipelines(
         // Same reasoning as the block size above, plus envs.front() below is undefined
         // behaviour on an empty vector.
         if (num_envs == 0 || num_envs > MAX_ENVIRONMENTS_PER_BLOCK) {
-            LOG_ERROR(Common_Filesystem,
-                      "Pipeline cache block declares {} environments; discarding cache", num_envs);
-            break;
+            // As above: throw so the bad cache is deleted and rebuilt, not kept forever.
+            throw std::runtime_error(
+                std::format("pipeline cache block declares {} environments", num_envs));
         }
         std::vector<FileEnvironment> envs(num_envs);
         for (FileEnvironment& env : envs) {

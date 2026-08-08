@@ -63,7 +63,11 @@ using VideoCommon::FileEnvironment;
 using VideoCommon::GenericEnvironment;
 using VideoCommon::GraphicsEnvironment;
 
-constexpr u32 CACHE_VERSION = 18;
+// Bumped to 19: e225179 changed the on-disk block layout to zstd-compressed blocks without
+// bumping this, so caches written by earlier builds still passed the header check and were
+// then misparsed -- the root cause of the boot abort. A format change must bump this so old
+// caches are retired cleanly and rebuilt.
+constexpr u32 CACHE_VERSION = 19;
 constexpr std::array<char, 8> VULKAN_CACHE_MAGIC_NUMBER{'y', 'u', 'z', 'u', 'v', 'k', 'c', 'h'};
 
 template <typename Container>
