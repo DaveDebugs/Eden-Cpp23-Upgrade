@@ -277,7 +277,13 @@ endif()
 if (ENABLE_WEB_SERVICE)
     add_subdirectory(web_service)
 endif()
-add_subdirectory(eden_dump)
+
+# eden-dump is a standalone RomFS extraction helper, not part of the emulator.
+# Keep it out of the default build so a warnings-as-errors break in the tool
+# can't stop eden.exe from building; opt in with -DENABLE_EDEN_DUMP=ON.
+if (ENABLE_EDEN_DUMP)
+    add_subdirectory(eden_dump)
+endif()
 
 
 if (ANDROID)
