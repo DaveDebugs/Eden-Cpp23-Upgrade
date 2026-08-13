@@ -96,7 +96,13 @@ Warm-run means (r2–r4), which is the like-for-like comparison:
 | 1% low FPS | 51.96 | **59.92** | **+15.3%** |
 | 0.1% low FPS | 38.36 | **48.50** | **+26.4%** |
 | Frames > 20 ms (3 runs) | 121 | **31** | **−74%** |
-| GPU busy / frame | 1.322 ms | 1.633 ms | +24% |
+
+GPU busy per frame is deliberately **not** in that table. The uncapped runs do
+not render the same scenes in the two builds, and the fork's values there are
+bimodal — 1.405, 1.744, 1.409, 1.746, alternating by run order and not tracking
+frame rate — while official's are flat (1.323, 1.321, 1.323). Averaging through
+that would produce a number that means nothing. The GPU comparison belongs to
+the locked configuration below, where the workload is identical.
 
 The fork's slowest warm run (97.70) is faster than official's fastest (96.32),
 so the gap is larger than the run-to-run spread rather than hidden inside it.
@@ -122,6 +128,7 @@ Warm runs:
 | Mean FPS | 58.76 | **59.66** |
 | **1% low FPS** | **30.00** | **59.20** |
 | Frames > 20 ms | 149 of 7,045 (**2.11%**) | 41 of 7,154 (**0.57%**) |
+| GPU busy / frame | **1.426 ms** | 1.565 ms (**+9.7%**) |
 
 The 1% low is the striking number and it needs explaining, because 30 versus 59
 looks implausible until you see what it means. A 1% low of 30.0 says that more
@@ -149,13 +156,21 @@ improvement does not survive this — it is a warm-cache win and a cold-cache
 loss, and since bumping `CACHE_VERSION` to 19 forces exactly one cold launch
 for every existing user, that cost is real and not hypothetical.
 
-**Run-to-run spread is wider.** Uncapped warm runs: fork σ = 5.40 FPS versus
-official σ = 2.97. Three runs is not enough to say whether that is the
-asynchronous shader path, the retired-buffer reaping, or noise.
+**GPU busy time went up**, 1.426 → 1.565 ms per frame in the locked
+configuration — **+9.7%**, measured where both builds provably render the same
+scenes. Against a ~17 ms frame this is nowhere near the limiter, but the
+direction is wrong and it is consistent across runs. The likely cause is the
+graphics-pipeline-library link path, which links four sub-pipelines with no
+`LINK_TIME_OPTIMIZATION`: the link is cheap but the driver cannot optimize
+across the stage boundaries, so the linked pipeline executes more slowly than a
+monolithic one. Untested until the GPL on/off A/B runs.
 
-**GPU busy time went up**, 1.322 → 1.633 ms per frame. Against a ~10 ms frame
-this is not close to being the limiter, but it is a real +24% and the direction
-is wrong.
+**A "wider run-to-run spread" claimed in an earlier draft is withdrawn.** It
+came from the uncapped runs (fork σ = 5.40 FPS vs official σ = 2.97), where the
+two builds play different scenes by construction. In the locked configuration
+the ordering reverses — fork σ = 0.13, official σ = 0.58 — and the fork drops
+far fewer slow frames in both runs. The uncapped spread is most likely the fork
+covering more of the level per 60 seconds and so sampling more scene variety.
 
 ---
 
@@ -204,6 +219,11 @@ bottleneck is not throughput of work, it is that almost nothing is parallel.
 - **One title, one level, one machine.** Mario Wonder is a 2D title with a
   ~1.4 ms GPU frame. A GPU-heavy 3D title could reverse the GPU-busy result
   entirely. Nothing here generalises to other games.
+- **The fork's uncapped GPU-busy values are bimodal and unexplained** — 1.405,
+  1.744, 1.409, 1.746, alternating by run order rather than tracking frame
+  rate, with no such pattern in official or in the locked runs. With four
+  samples a perfect alternation arises by chance roughly one time in three, so
+  this may well be nothing; it is recorded rather than explained.
 - **Three to four runs per configuration.** Enough to separate a 9% mean
   difference from a 3–5 FPS spread; not enough for a confident figure on the
   cold-cache regression or the wider variance.
