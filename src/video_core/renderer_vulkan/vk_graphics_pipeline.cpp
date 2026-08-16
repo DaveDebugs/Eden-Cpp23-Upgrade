@@ -5,6 +5,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <algorithm>
+#include <atomic>
+#include <chrono>
+#include <cstdlib>
 #include <iostream>
 #include <span>
 
@@ -994,7 +997,23 @@ void GraphicsPipeline::MakePipeline(VkRenderPass render_pass) {
     // Only take the library path when the driver advertises fast linking. Without it the
     // driver is permitted to re-compile when linking, which would make this path cost four
     // extra pipeline creations plus a full compile -- worse than the monolithic path below.
-    if (device.SupportsFastPipelineLibraryLinking()) {
+    //
+    // EDEN_DISABLE_GPL=1 forces the monolithic path at runtime so the graphics-pipeline-
+    // library path can be A/B'd against it without a rebuild (one binary, both arms). Read
+    // once; the env var is sampled at first pipeline build.
+    static const bool gpl_disabled = [] {
+        const char* v = std::getenv("EDEN_DISABLE_GPL");
+        return v != nullptr && v[0] == '1';
+    }();
+
+    // Pipeline build cost is the thing the library path is supposed to change, so measure
+    // it here rather than inferring it from frame rate. This is in-process: it needs no
+    // ETW capture, no window focus and no synthetic input, all of which proved to be
+    // unreliable ways to benchmark this.
+    const auto build_begin = std::chrono::steady_clock::now();
+    const bool used_gpl = !gpl_disabled && device.SupportsFastPipelineLibraryLinking();
+
+    if (used_gpl) {
         static_vector<VkPipelineShaderStageCreateInfo, 5> pre_raster_stages;
         static_vector<VkPipelineShaderStageCreateInfo, 1> fragment_stages;
         for (const auto& stage : shader_stages) {
@@ -1126,6 +1145,23 @@ void GraphicsPipeline::MakePipeline(VkRenderPass render_pass) {
             .basePipelineHandle = nullptr,
             .basePipelineIndex = 0,
         }, *pipeline_cache);
+    }
+
+    // One line per pipeline, plus a running total. Parsing these from the log gives an
+    // exact A/B of build cost between the library and monolithic paths with no external
+    // profiler involved.
+    {
+        const auto build_us = std::chrono::duration_cast<std::chrono::microseconds>(
+                                  std::chrono::steady_clock::now() - build_begin)
+                                  .count();
+        static std::atomic<u64> total_us{0};
+        static std::atomic<u32> total_count{0};
+        const u64 running_us = total_us.fetch_add(static_cast<u64>(build_us)) + build_us;
+        const u32 running_n = total_count.fetch_add(1) + 1;
+        LOG_INFO(Render_Vulkan,
+                 "PIPELINE_BUILD path={} us={} n={} total_ms={:.1f}",
+                 used_gpl ? "gpl" : "monolithic", build_us, running_n,
+                 static_cast<double>(running_us) / 1000.0);
     }
 
     // Log graphics pipeline creation
