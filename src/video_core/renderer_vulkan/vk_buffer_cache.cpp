@@ -406,6 +406,22 @@ u32 BufferCacheRuntime::GetStorageBufferAlignment() const {
 void BufferCacheRuntime::TickFrame(Common::SlotVector<Buffer>& slot_buffers) noexcept {
     // Buffers are managed and deleted by the generic BufferCache (via lru_cache and delayed_destruction_ring).
     // Erasing them directly from slot_buffers here leaves stale pointers in page_table and corrupts the LRU cache.
+    //
+    // Clearing each buffer's usage tracker, however, still has to happen. Buffer::MarkUsage only
+    // ever SETS bits in the tracker and nothing ever cleared them, so IsRegionUsed() saturated as
+    // a session went on and CanReorderUpload() decayed towards always-false -- silently switching
+    // off the upload-reordering fast path the longer the emulator ran. ResetUsageTracking() existed
+    // for this but had no callers at all.
+    //
+    // The reset is only sound once the GPU has finished every command that touched the buffer,
+    // otherwise an upload could be reordered ahead of work that still reads the old contents.
+    // IsFree(LastUsageTick()) is exactly that guarantee -- the same guard the removed erase loop
+    // used. It was the erase that was unsafe, not this condition.
+    for (auto it = slot_buffers.begin(); it != slot_buffers.end(); ++it) {
+        if (scheduler.IsFree(it->LastUsageTick())) {
+            it->ResetUsageTracking();
+        }
+    }
 }
 
 void BufferCacheRuntime::Finish() {
