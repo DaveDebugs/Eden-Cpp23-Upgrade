@@ -190,27 +190,40 @@ windows, fork build):
 | **cores used, of 32** | **2.27** | **3.21** |
 
 The earlier version of this measurement was taken on the same flawed title
-screen, so it has been redone under load. The finding holds and is if anything
-sharper: `HostTiming` consumes a full core, more than any thread that does
-actual emulation work, in both configurations.
+screen, so it has been redone under load. `HostTiming` does consume a full
+core's worth of *attributed CPU time* in both configurations.
 
-The cause is `src/common/thread.cpp:240`. `Event::WaitFor` blocks properly on
-POSIX via `condvar.wait_for`, but on Windows it spins:
+**An earlier draft called this a busy-wait and named it the largest remaining
+optimisation. That was wrong, and the recommendation it carried would have made
+things worse.** `Event::WaitFor` in `src/common/thread.cpp` has three x86-64
+paths, not one: AMD `MONITORX`/`MWAITX`, Intel `WAITPKG`/`UMWAIT`, and only as a
+last resort the `SleepForOneTick()` poll that the draft quoted. Which one runs
+is decided by CPUID at runtime.
 
-```cpp
-auto const end = Common::g_wall_clock.GetTimeNS() + time;
-while (!is_set.load() && end > Common::g_wall_clock.GetTimeNS())
-    Common::Windows::SleepForOneTick();
+Checked directly on this machine (`CPUID.(EAX=7,ECX=0):ECX[5]`):
+
+```
+CPU      : Intel(R) Core(TM) i9-14900KF
+MONITORX : no
+WAITPKG  : YES   -> Event::WaitFor uses UMWAIT
 ```
 
-A high-resolution waitable timer (`CreateWaitableTimerEx` with
-`CREATE_WAITABLE_TIMER_HIGH_RESOLUTION`) would give the same pacing precision
-without the busy-wait. This is unimplemented — it is the largest remaining item,
-and timing code is the riskiest thing in an emulator to change, so it wants
-before/after measurement rather than confidence.
+So this CPU never reaches the polling branch. `UMWAIT` parks the core in an
+optimised C0.2 sub-state and releases its SMT sibling's resources, but the
+thread stays scheduled, so Windows keeps billing it CPU time. The 97.9% figure
+is therefore largely an accounting artifact of how idle-in-UMWAIT is measured,
+not a core being burned on useless work — and the same caveat applies to the
+"2.27 of 32 cores" figure below.
 
-The wider point the profile makes: the emulator uses 2–3 of 32 cores. The
-bottleneck is not throughput of work, it is that almost nothing is parallel.
+Replacing this with `CreateWaitableTimerEx` would have been a regression:
+coarser resolution than a TSC-deadline `UMWAIT`, plus a real context switch per
+wait. The polling fallback is still worth replacing, but it only affects CPUs
+with neither `WAITPKG` nor `MONITORX`, so it cannot be measured on this machine
+and is not the headline item this document previously claimed.
+
+The wider point the profile makes still stands: the emulator occupies 2–3 of 32
+cores. The bottleneck is not throughput of work, it is that almost nothing is
+parallel.
 
 ---
 

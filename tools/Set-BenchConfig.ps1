@@ -96,6 +96,15 @@ foreach ($line in $lines) {
     if ($line -like 'player_0_lstick=*') { $new = 'player_0_lstick=""' }
     if ($line -like 'player_0_rstick=*') { $new = 'player_0_rstick=""' }
 
+    # Silence the emulator for benchmarking. Audio is irrelevant to every metric
+    # captured here and unattended runs should not make noise. As everywhere in
+    # this file, the `\default` twin has to be cleared too or the loader ignores
+    # the stored value.
+    if ($line -like 'audio_muted=*')         { $new = 'audio_muted=true' }
+    if ($line -like 'audio_muted\default=*') { $new = 'audio_muted\default=false' }
+    if ($line -like 'volume=*')              { $new = 'volume=0' }
+    if ($line -like 'volume\default=*')      { $new = 'volume\default=false' }
+
     # Vsync goes off in both modes. FIFO (2) blocks every present on the
     # monitor's refresh, so with it on the capture measures the display rather
     # than the emulator -- exactly the trap the title-screen benchmark fell

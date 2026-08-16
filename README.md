@@ -1,129 +1,197 @@
-# Eden Emulator: C++23 Modernization & Deep Dive
-*Keywords: Nintendo Switch Emulator, Switch Emulation, Yuzu Fork, Eden Emulator, C++23, Vulkan Renderer, Performance Optimization, Memory Leak Fix, ASTC Decoding, Metroid Dread, Tears of the Kingdom, Pokémon Scarlet, Crysis 2.*
+# Eden — C++23 fork with Vulkan backend fixes
 
-> **IMPORTANT DISCLAIMER regarding AI and Official Versions:**
-> Please note that the original creators and maintainers of the official Eden Emulator version DO NOT want AI to change the official version or make an upstream tree. Out of respect for their wishes, we will NOT be contributing these changes upstream to the official project. We are only putting this on our GitHub page as a standalone repository to showcase the source code for the new, modern C++23 version we have independently created. 
+> **On AI-authored changes and the official project:**
+> The maintainers of the official Eden emulator do not want AI-authored changes
+> upstreamed. Out of respect for that, nothing here is proposed upstream. This
+> repository exists only to show the source of an independent fork.
 
-## Introduction
-The Eden Emulator began as a robust, capable Nintendo Switch emulator. However, as newer and more demanding titles like *The Legend of Zelda: Tears of the Kingdom* and *Crysis 2 Remastered* emerged, the architecture of the **Eden v0.2.1** stable release began to show its age. Users encountered severe memory leaks, CPU thread starvation, traversal stutters, and sub-pixel visual artifacts. 
-
-Our mission was to systematically modernize the Eden codebase to **C++23**, eliminate critical bottlenecks, and fundamentally upgrade the core emulation loops to achieve unparalleled stability and performance.
-
----
-
-## Phase 1: The C++23 Modernization
-The first phase involved transitioning the codebase away from legacy libraries and paradigms in favor of modern, performant C++ standard features.
-
-### Key Upgrades:
-- **`std::format` & `std::variant` Integration:** Completely phased out heavy external dependencies like `fmt` and `boost::variant` in favor of standard C++ features (`std::format`, `std::variant`, `std::filesystem`). This significantly reduced binary bloat and compilation times.
-- **Multidimensional Memory Handling (`std::mdspan`):** Replaced legacy, pointer-heavy memory layouts with `std::mdspan` (introduced in C++23). This gave the memory and texture subsystems cache-friendly, bounds-checked contiguous memory access, vastly improving the data pipeline speed.
-- **`std::flat_map` & `std::flat_set`:** Swapped out node-based containers for contiguous memory maps, optimizing lookup times in performance-critical hot loops (like texture caching and memory management).
-- **Modern C++ Semantics:** Applied `std::expected` for safer, exception-less error handling, and fully transitioned to modern standard ranges (`std::ranges`).
-
-*Result:* A significantly cleaner, faster, and more easily maintainable codebase that set the foundation for Phase 2.
+A personal fork of [Eden](https://git.eden-emu.dev/eden-emu/eden) tracking
+`v0.2.1`, built as C++23 with MSVC, focused on fixing real defects in the Vulkan
+backend and measuring the result honestly.
 
 ---
 
-## Phase 2: The Deep Dive Optimizations
-With the new C++23 foundation in place, we launched a "Deep Dive" to track down the remaining emulatory bugs and memory leaks.
+## What this fork actually changes
 
-### 1. The VRAM Memory Leak (Vulkan Buffer Cache)
-**The Problem:** Games like *Crysis 2* and *Tears of the Kingdom* would crash after 10-15 minutes because VRAM usage would skyrocket uncontrollably (hitting 6.8+ GB).
-**The Fix:** In `vk_buffer_cache.cpp` (`BufferCacheRuntime::TickFrame`), discarded buffers were only being unbound, not completely destroyed or returned to the pool. We implemented proper buffer destruction logic, resolving the VRAM leak completely. VRAM usage in Crysis 2 dropped from an unstable 6.8 GB to a locked 3.1 GB.
+### Vulkan backend defect fixes
 
-### 2. Sub-Pixel Jitter & Truncation (Rasterizer)
-**The Problem:** High frame-rate, precision-heavy games like *Metroid Dread* exhibited edge artifacting and sub-pixel jitter during scaling operations.
-**The Fix:** We identified a bug in `vk_rasterizer.cpp` (`DrawTexture`) where coordinate scaling was using truncated integers. We fixed the `ScaleSrc` and `ScaleDst` logic to use proper floating-point coordinates and modernized the draw-call lambdas using C++23's **"deducing this"** feature to reduce overhead.
+These were found by reading the code and are the substantive work here. Each is
+a genuine bug in the baseline:
 
-### 3. CPU Thread Starvation
-**The Problem:** CPU-intensive games (like *Pokémon Scarlet*) suffered from severe 1% low frame drops because idle emulation threads were spinning and hoarding CPU cycles, starving other emulator subsystems.
-**The Fix:** We modified `CpuManager::MultiCoreRunIdleThread` and `SingleCoreRunIdleThread` to properly yield back to the OS scheduler using `std::this_thread::yield()`, drastically boosting 1% lows and overall smoothness.
+| Defect | Consequence |
+|---|---|
+| `VK_EXT_graphics_pipeline_library` sub-pipelines were function locals, destroyed before the pipeline that linked them | use-after-free; null dereference on NVIDIA |
+| MSAA download temp image was a stack local, freed while the scheduler still held its `VkImage` | use-after-free on any MSAA readback |
+| Dangling `else`: MSAA depth/stencil downloads recorded **no copy at all** | stale staging memory returned as if it were valid data |
+| An early `return` skipped `ScaleUp` | rescaled images left stuck scaled-down after download |
+| `notify_one` on an atomic with several waiters at different target ticks | lost wakeup; deadlock on drivers without timeline semaphores |
+| `CACHE_VERSION` not bumped when the on-disk block format changed to zstd | stale caches passed the header check, were misparsed into a ~2 TB allocation, and aborted the process on boot |
 
-### 4. Asynchronous Shader Pre-Caching & ASTC Decoding
-**The Problem:** Traversal stutters crippled the experience in many open-world titles due to runtime shader compilation.
-**The Fix:** We modernized container pipelines using `std::ranges::to` in `vk_texture_cache.cpp`, implemented robust synchronous shader pre-caching, and expanded support for hardware-accelerated ASTC texture decoding to eliminate micro-stutters.
+The last one is worth spelling out: a corrupt or stale pipeline cache could take
+the whole emulator down at startup, because the block length was read straight
+off disk without validation and `std::bad_alloc` escaped a `catch` that only
+handled `ios_base::failure`. Cache files are now length-validated, bounded, and
+a bad cache costs you the cache rather than the process.
 
----
+### Buffer cache: usage tracking is now actually reset
 
-## Phase 3: Post-Modernization Stability & Crash Fixes
-Following the C++23 modernization, we resolved several critical compiler-specific and buffer-management runtime issues that caused game crashes and launching hangs.
+`Buffer::MarkUsage()` only ever *sets* bits in its `UsageTracker`, and
+`ResetUsageTracking()` had **no callers anywhere in the tree**. `IsRegionUsed()`
+therefore saturated as a session ran, and `CanReorderUpload()` decayed towards
+always-false — silently disabling the upload-reordering fast path the longer you
+played. `BufferCacheRuntime::TickFrame` now clears each buffer's tracker, gated
+on `scheduler.IsFree(buffer.LastUsageTick())` so a reset can only happen once the
+GPU has finished every command that touched that buffer.
 
-### 1. MSVC 19.51 `.rdata` Alignment Bug Workaround
-* **The Problem:** The MSVC 19.51 compiler emitted unaligned memory addresses for `constexpr` static structs, causing an access violation (`0xC0000005`) immediately at boot when loading Nintendo Switch NSO patches.
-* **The Fix:** Removed the `constexpr` qualifier from the `FunctionInfoTyped` constructor in `service.h` to force the compiler to generate properly-aligned structure initializers in memory.
+### Per-draw work removed
 
-### 2. GPU Buffer Cache Memory Corruption
-* **The Problem:** When games issued large draw calls requiring an inline index buffer resize, the emulator would crash inside `LeastRecentlyUsedCache::Free` with an invalid ID (`SIZE_MAX`).
-* **The Fix:** 
-  * Replaced a raw `slot_buffers.erase()` call in `buffer_cache.h`'s `UpdateIndexBuffer` with `DeleteBuffer()` to ensure the stale buffer is fully unregistered from the internal page table.
-  * Empty-bodied the redundant, manual erasure loop in Vulkan's `BufferCacheRuntime::TickFrame` in `vk_buffer_cache.cpp` that was silently deleting active buffers and corrupting the LRU cache tracking state.
+`UpdateDynamicStates` re-resolved `CurrentGraphicsPipeline()` even though
+`PrepareDraw` had just done so, and the alpha-to-coverage and alpha-to-one paths
+each resolved it again — up to four lookups per draw, each re-running the full
+`FixedPipelineState::Refresh` across dozens of Maxwell registers. Now resolved
+once and passed down.
 
-### 3. Benchmark Frametime Calculation Fix
-* **The Problem:** In certain emulation states, `benchmark_results.json` would output `-nan` for the average frametime.
-* **The Fix:** Patched a division-by-zero risk in `perf_stats.cpp`'s `GetAndResetStats()` by safely handling states where `system_frames` is `0`.
+Also removed: a full `scheduler.Finish()` (complete CPU/GPU serialisation) on
+every quad-index-buffer growth, replaced with retiring the old buffer against a
+GPU tick and reclaiming it once that tick is free.
 
----
+### Build configuration
 
-## Final Benchmark Results
-The transition from Original Eden (v0.2.1) to the **Final C++23 Deep Dive** build yielded generational improvements.
-
-### 1. Core Performance (Metroid Dread & Crysis 2)
-The Final C++23 Deep Dive provided massive boosts to both our high-framerate target (Metroid Dread) and our heavy-GPU target (Crysis 2).
-
-![Final Benchmark Graph](./images/final_benchmark_graph.png)
-
-#### Metroid Dread (1080p Docked)
-- **Average FPS:** 45.2 FPS ➔ 59.8 FPS *(+32.3%)*
-- **1% Lows:** 19.8 FPS ➔ 54.3 FPS *(+174.2%)*
-- **Visuals:** Flawless; sub-pixel jitter resolved.
-
-#### Crysis 2 Remastered (720p Handheld)
-- **Average FPS:** 18.5 FPS ➔ 29.5 FPS *(+59.5%)*
-- **1% Lows:** 8.2 FPS ➔ 24.1 FPS *(+193.9%)*
-- **Stability:** Massive VRAM leak eliminated. Rock-solid stability over long sessions.
+LTO (`CMAKE_INTERPROCEDURAL_OPTIMIZATION`) and `/arch:AVX2` under MSVC.
 
 ---
 
-### 2. Extreme Stress Testing (Tears of the Kingdom & Pokémon Scarlet)
-We put the emulator through the wringer using the two most notoriously heavy and unoptimized games on the system.
+## C++23 status — measured, not claimed
 
-![Stress Test Graph](./images/stress_test_graph.png)
+`CMAKE_CXX_STANDARD 23` is set and the tree builds as C++23. Feature adoption,
+counted as files containing each construct across 3,052 source files:
 
-#### Tears of the Kingdom (1080p Docked - Stress Test)
-- **Average FPS:** 21.5 FPS ➔ 29.8 FPS *(+38.6%)*
-- **Stability:** Eden v0.2.1 crashed after 14 minutes due to VRAM leak. Modernized remained perfectly stable indefinitely.
+| Feature | Files | |
+|---|---:|---|
+| `std::span` | 438 | widely used |
+| `std::optional` | 279 | widely used |
+| `std::format` | 189 | widely used |
+| `std::ranges::` | 72 | common |
+| `std::stop_token` | 71 | common |
+| `std::jthread` | 60 | common |
+| `std::bit_*` | 63 | common |
+| `std::expected` | 1 | essentially unused |
+| `std::mdspan` | 1 | essentially unused |
+| `std::flat_map` / `flat_set` | **0** | not used |
+| deducing `this` | **0** | not used |
 
-#### Pokémon Scarlet (1080p Docked - Stress Test)
-- **Average FPS:** 24.2 FPS ➔ 30.0 FPS *(+24.0%)*
-- **1% Lows:** 11.3 FPS ➔ 27.1 FPS *(+139.8%)*
-- **Stuttering:** Traversal stutter eliminated via synchronous pre-caching.
-
----
-
-### 3. High-Resolution Docked Analysis (Crysis 2 Remastered)
-We tested the limits of our Vulkan renderer by pushing Crysis 2 to 1080p Docked Mode. The VRAM leak fix allowed the emulator to gracefully handle the 4.8 GB load.
-
-![Crysis 1080p Graph](./images/crysis_1080p_benchmark_graph.png)
-
-- **Average FPS (720p ➔ 1080p):** 29.5 FPS ➔ 26.2 FPS *(Only -11.1% performance penalty)*
-- **1% Lows (720p ➔ 1080p):** 24.1 FPS ➔ 21.0 FPS *(Only -12.8% performance penalty)*
-
----
-
-### 4. Asynchronous Shader Compilation Optimization
-The most jarring remaining issue in the engine was shader compilation stutter. When the game encountered new materials or effects, the main emulation thread was forced to synchronously compile the Vulkan pipeline. This caused the main thread to completely stall for an average of **140 ms per shader pipeline**, leading to massive frametime spikes and visual freezing during gameplay.
-
-To fix this, we completely redesigned the pipeline cache to operate asynchronously. We moved the heavy `BuildShader` and pipeline creation workloads into isolated background worker threads. 
-
-![Shader Compile Time Impact](./images/shader_compile_time.png)
-
-Now, the main thread only blocks for **< 1.2 ms** to queue up pipelines, and compilation continues seamlessly in the background without holding up the game's presentation loop.
-
-![Gameplay Frametime Stability](./images/frametime_variance.png)
-
-This optimization single-handedly eliminated traversal stutters. The gameplay frametime now remains a locked 16.6ms (60 FPS target) even when streaming entirely new zones, generating a vastly smoother and more premium emulation experience.
+Legacy dependencies are **not** gone: `fmt::` appears in 36 files and `boost::`
+in 110. An earlier version of this README claimed `fmt` and `boost` had been
+"completely phased out", that `std::mdspan` had replaced legacy memory layouts,
+that `std::flat_map`/`flat_set` had replaced node-based containers, and that
+"deducing this" was used in the rasterizer. None of that survives a grep. Those
+claims have been removed rather than softened.
 
 ---
 
-## Conclusion
-By aggressively tackling technical debt, migrating to standard C++23 features, and methodically profiling the CPU and GPU hot paths, the Eden Emulator has been entirely transformed. Upgrading from the baseline Eden v0.2.1 release to the Final C++23 Modernized build proves that the emulator is now more accurate, exponentially more stable, and dramatically faster across the board.
+## Measured performance
+
+Full method and caveats: [`docs/eden_performance_comparison.md`](docs/eden_performance_comparison.md).
+
+**Test:** Super Mario Bros. Wonder, W1 "Rolla Koopa Derby", i9-14900KF /
+RTX 5070 Ti / NVIDIA 610.88 / Windows 11 25H2. Frames captured externally with
+Intel PresentMon so both binaries are measured identically. Gameplay is reached
+by a scripted input sequence and every run is screenshot-verified to be in a
+level — an earlier version of this benchmark measured the **title screen** with
+no input at all, against the title's own 60 FPS cap, which made the two builds
+look identical for reasons that had nothing to do with either build.
+
+Uncapped, warm cache, mean of three runs each, vs official v0.2.1:
+
+| Metric | official v0.2.1 | this fork | Δ |
+|---|---:|---:|---:|
+| Mean FPS | 92.89 | **101.48** | **+9.2%** |
+| 1% low FPS | 51.96 | **59.92** | **+15.3%** |
+| 0.1% low FPS | 38.36 | **48.50** | **+26.4%** |
+| Frames > 20 ms (3 runs) | 121 | **31** | **−74%** |
+
+Locked to 100% speed, where both builds advance the emulated game at the same
+rate so the input script produces identical gameplay in each:
+
+| Metric | official v0.2.1 | this fork |
+|---|---:|---:|
+| Frames > 20 ms | 149 of 7,045 (2.11%) | **41 of 7,154 (0.57%)** |
+| GPU busy / frame | **1.426 ms** | 1.565 ms (+9.7%) |
+
+### Where this fork is worse
+
+- **GPU time per frame is up ~9.7%** in the locked configuration.
+- **Cold-cache launches were ~7% slower** in a single run per build — n=1, and
+  the warm-run spread is ±5%, so this may be noise. It is recorded, not claimed.
+
+### What these numbers cannot tell you
+
+One title, one level, one machine, three to four runs per configuration. The
+baseline is a **Clang** build and this fork is **MSVC + LTO + AVX2**, so
+toolchain codegen differences are inseparable from the source changes. Nothing
+here generalises to other games, and there are no measurements at all for
+Metroid Dread, Crysis 2, Tears of the Kingdom or Pokémon Scarlet — an earlier
+version of this README published detailed FPS figures for all four. Those
+numbers were hardcoded literals in a generator script, not measurements, and
+have been removed.
+
+---
+
+## A measured negative result: pipeline libraries
+
+`VK_EXT_graphics_pipeline_library` is used whenever the driver advertises fast
+linking. Testing it against itself — same binary, switched by an environment
+variable, both shader caches cleared before every boot, counterbalanced run
+order — shows it buys nothing on this driver:
+
+| | pipeline build cost, 51 pipelines |
+|---|---:|
+| GPL enabled | 709.1 ± 25.6 ms |
+| GPL disabled (monolithic) | 701.2 ± 34.0 ms |
+
+A +1.1% difference inside a ±4% noise band: **no measurable build-cost benefit.**
+This is consistent with an earlier finding that NVIDIA's own `VkPipelineCache`
+already deduplicates the shader sets the library split is meant to save.
+
+An earlier measurement that appeared to show GPL being 15× faster was an
+artifact: it cleared Eden's shader cache but not NVIDIA's `GLCache`, so whichever
+path ran second inherited warm driver state.
+
+Whether fast-linked pipelines also *execute* more slowly is not yet settled —
+that needs a gameplay-length capture rather than a title screen.
+
+---
+
+## Tools
+
+`tools/` contains the benchmark harness used for the numbers above:
+
+| Script | Purpose |
+|---|---|
+| `Bench-Gameplay.ps1` | A/B two builds during real gameplay, screenshot-verified |
+| `Bench-GplPipelines2.ps1` | pipeline build cost, both shader caches cleared per boot |
+| `Bench-GplGameplay.ps1` | GPL A/B driven by `PostMessage`, no window focus needed |
+| `Set-BenchConfig.ps1` | swaps in a benchmark config (muted, unlocked) and restores it |
+| `Profile-Gameplay.ps1` | per-thread CPU profile during gameplay |
+| `dumpstack.py` | minidump parser + symbolizer, no debugger install required |
+
+Requires Intel PresentMon (`winget install Intel.PresentMon.Console`).
+
+Three things that make this kind of measurement lie, all of which cost real time
+here and are handled in the scripts:
+
+1. Eden stores every setting twice, `foo` and `foo\default`; the loader ignores
+   the stored value unless the `\default` twin is cleared too. Writing
+   `use_speed_limit=false` alone does nothing and the run comes back pinned at
+   60 FPS looking perfectly legitimate.
+2. PresentMon cannot resolve the exe name of an already-running process without
+   elevation, so `--process_name` silently matches nothing. Target by PID.
+3. Killing PresentMon does not close its ETW session, and a leaked session
+   starves later captures — they report "Started recording" and write nothing.
+
+---
+
+## Building
+
+Standard Eden build requirements. MSVC with C++23. `eden-dump`, a standalone
+RomFS extraction helper, is off by default; enable with `-DENABLE_EDEN_DUMP=ON`.
